@@ -85,3 +85,16 @@ Citi corrected, asset management added, internship selection may depend on recip
 - Vercel GitHub connection now sees common-ground. Import configuration reached, Angela Hobby / Next.js / root ./ / common-ground. No project created or deployment yet. Supabase env still missing.
 - User took over browser for Vercel authenticator setup; stop interacting with credential form until user finishes. Supabase project creation still unverified, previously awaiting user password entry.
 - Latest usage check 80% five-hour used, zero reset credits. Preserve all progress; no automated sending is active.
+
+## Hosting change requested by user
+User explicitly cancelled Vercel and requested Supabase-only deployment. Stop Vercel provisioning. Supabase hosted service supports backend/auth/database, not this Next.js frontend deployment; official custom-domain docs say frontend hosting through Edge Functions is not intended. Need clarify whether to configure Supabase backend with local UI for now or select a separate frontend host. Do not assume authorization for a substitute host. Existing source remains safe in GitHub.
+
+## Current implementation — 2026-09-22 (supersedes earlier hosting status)
+- User explicitly reauthorized Vercel, applied Supabase schema, and selected individual Gmail compose handoff.
+- Supabase owner tables and live workspace work. Fifty active public-source UBS wealth-management contacts in NYC/Chicago and fifty waiting drafts saved; one unsuitable candidate suppressed. Public addresses are not deliverability-verified; some associate titles require seniority review. No sends or Gmail handoffs performed.
+- Private research, refreshed first-50 CSV/JSON, and workspace snapshot saved under ignored private/research; excluded from Git and Vercel uploads.
+- Login-free loopback mode uses a server-only session for the existing configured owner, preserving RLS. No credentials sent to browser.
+- Vercel CLI authorized, project linked, and Vercel Authentication set to ALL deployments. Production VERCEL_PROTECTED_OWNER_MODE=true replaces the separate app sign-in with the existing owner session behind Vercel's access gate. Never disable protection or add exceptions/share bypasses while this mode is enabled. Preview environments default to normal app authentication.
+- Waiting for approval now opens by default. Review exact recipient/content and public source, save edits, individually approve, open Gmail, manually click Send, then record sent history. Repeat handoffs and duplicate drafts are blocked. Gmail changes/replies are not automatically observed.
+- Twenty-one tests passed. Local API rejects missing approval, stale versions and foreign origins without mutations. TypeScript passed before hosted-mode switch; final recheck and Vercel build in progress.
+- Usage checkpoint: 48% of five-hour window used, zero reset credits. No reset redeemed by assistant. Production deployment underway; verify final URL and private access before reporting completion.
