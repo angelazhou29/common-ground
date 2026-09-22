@@ -1,0 +1,26 @@
+name: Hourly workspace health
+on:
+  schedule:
+    - cron: '17 * * * *'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: hourly-workspace
+  cancel-in-progress: false
+jobs:
+  maintenance:
+    if: vars.AUTOMATION_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Run authenticated maintenance
+        env:
+          APP_URL: ${{ vars.APP_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          test -n "$APP_URL" && test -n "$CRON_SECRET"
+          case "$APP_URL" in https://*) ;; *) exit 1 ;; esac
+          curl --fail --silent --show-error --max-time 60 \
+            -X POST "$APP_URL/api/jobs" \
+            -H "Authorization: Bearer $CRON_SECRET"

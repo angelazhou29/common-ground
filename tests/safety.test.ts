@@ -1,0 +1,19 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {csv,parseCsv,emailIdentity,identitiesFor,reviewReasons,sendReasons,businessWindow,draft,safeUrl} from '../lib/safety.ts';
+const now=Date.parse('2026-09-22T14:00:00Z');
+const c:any={id:'one',name:'Test Person',email:'test@example.com',alternateEmails:[],linkedin:'',timezone:'America/Chicago',verification:'valid',verifiedAt:'2026-09-22',emailOrigin:'published',identityConfirmed:true,fit:'Your documented work interests me.',topic:'product decisions',sources:[{url:'https://example.com/team',retrievedAt:'2026-09-22'}]};
+const s:any={name:'Owner',intro:'I study product design.',goal:'how teams learn',paused:false,sending:true,dailyCap:5,weeklyCap:20,companyCap:2};
+const m:any={state:'queued',subject:'A conversation',body:'Would you have time for a brief conversation?'};
+const ctx:any={authorized:true,approved:true,provider:true,replyFresh:true,replied:false,booked:false,daily:0,weekly:0,company:0,now};
+test('Gmail aliases deduplicate; different people with same name do not share identity',()=>{assert.equal(emailIdentity('A.B+tag@googlemail.com'),'ab@gmail.com');assert.notDeepEqual(identitiesFor({...c,email:'other@example.com'}),identitiesFor(c));});
+test('stale, ambiguous, catch-all, guessed and synthetic contacts are held',()=>{for(const patch of [{verifiedAt:'2025-01-01'},{verification:'catch-all'},{emailOrigin:'inferred'},{identityConfirmed:false},{synthetic:true},{sources:[]},{excluded:true}])assert.ok(reviewReasons({...c,...patch},now).length);assert.deepEqual(reviewReasons(c,now),[])});
+test('reply, booking, pause, revoked access and monitoring failure stop sends',()=>{assert.equal(sendReasons(c,m,s,ctx).length,0);for(const patch of [{approved:false},{replied:true},{booked:true},{provider:false},{replyFresh:false},{authorized:false},{daily:5}])assert.ok(sendReasons(c,m,s,{...ctx,...patch}).length);assert.ok(sendReasons(c,m,{...s,paused:true},ctx).length)});
+test('submitted or uncertain messages never pass automatic resend checks',()=>{for(const state of ['submitted','sent','uncertain','cancelled'])assert.ok(sendReasons(c,{...m,state},s,ctx).length)});
+test('placeholder content blocks sending',()=>assert.ok(sendReasons(c,{...m,body:'Hello [NAME]'},s,ctx).length));
+test('timezone and DST use IANA timezones, holidays and unknown zones close window',()=>{assert.equal(businessWindow('2026-03-06T14:30:00Z','America/New_York'),true);assert.equal(businessWindow('2026-03-09T13:30:00Z','America/New_York'),true);assert.equal(businessWindow('2026-03-09T12:30:00Z','America/New_York'),false);assert.equal(businessWindow('2026-03-08T14:30:00Z','America/New_York'),false);assert.equal(businessWindow('2026-03-09T13:30:00Z','America/New_York',['2026-03-09']),false);assert.equal(businessWindow('2026-03-09T13:30:00Z','Unknown'),false)});
+test('CSV round-trips quoted commas and newlines and neutralizes formulas',()=>{const encoded=csv([{name:'A, B',notes:'two\nlines',formula:' =HYPERLINK("x")'}]);const parsed=parseCsv(encoded);assert.equal(parsed[0].notes,'two\nlines');assert.equal(parsed[0].name,'A, B');assert.ok(parsed[0].formula.startsWith("'"));assert.throws(()=>parseCsv('name\n"bad'))});
+test('missing owner identity and research block drafting',()=>{assert.throws(()=>draft(c,{...s,name:''}));assert.throws(()=>draft({...c,sources:[]},s));assert.ok(draft(c,s).body.includes(c.topic));});
+test('unsafe links cannot be saved',()=>{assert.equal(safeUrl('javascript:alert(1)'),'');assert.equal(safeUrl('https://user:pass@example.com'),'');assert.equal(safeUrl('https://example.com'),'https://example.com/')});
+
+test('initial drafts omit booking links, times and call requests',()=>{const text=draft(c,{...s,bookingUrl:'https://example.com/book',callMinutes:15}).body;assert.doesNotMatch(text,/https:\/\/example.com\/book|minute|schedule|call|book a/i)});

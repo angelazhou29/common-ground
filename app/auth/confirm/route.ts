@@ -1,0 +1,3 @@
+import {supabase} from '@/lib/supabase';
+import {NextResponse} from 'next/server';
+export async function GET(req:Request){const url=new URL(req.url);const client=await supabase();const code=url.searchParams.get('code');const hash=url.searchParams.get('token_hash');const result=code?await client.auth.exchangeCodeForSession(code):hash?await client.auth.verifyOtp({token_hash:hash,type:'email'}):{error:true};if(!result.error){const {data:{user}}=await client.auth.getUser();if(user?.email?.toLowerCase()===process.env.OWNER_EMAIL?.toLowerCase())return NextResponse.redirect(new URL('/',url.origin));await client.auth.signOut();}return NextResponse.redirect(new URL('/login?status=expired',url.origin));}
