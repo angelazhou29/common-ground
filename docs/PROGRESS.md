@@ -78,3 +78,10 @@ Citi corrected, asset management added, internship selection may depend on recip
 - Earlier integration tests targeted the retired local D1 authentication harness and are not proof of Supabase production integration.
 - Local source committed as a4316c6; remote configured, not pushed pending GitHub device authorization. Production localhost preview session 33391. Verified /demo renders, /api/workspace returns 401 without auth, / redirects to sign-in (307), health reports sending disabled.
 - Latest usage checkpoint: 52% five-hour used (48% remaining), 8% weekly used, zero reset credits. Account-dependent deployment paused pending user authorization/password entry, not complete.
+
+## GitHub publication and Vercel handoff
+- GitHub CLI authorized by user, credentials held in OS keyring. Source pushed to private angelazhou29/common-ground. Bundled Git PATH required; system Git opens Xcode installer.
+- First hosted CI failed because ignored vendor CSS was needed. Included vendor/shadcn-tailwind-4.13.0.css in commit c84e739. Corrected hosted CI PASSED: https://github.com/angelazhou29/common-ground/actions/runs/35753904785
+- Vercel GitHub connection now sees common-ground. Import configuration reached, Angela Hobby / Next.js / root ./ / common-ground. No project created or deployment yet. Supabase env still missing.
+- User took over browser for Vercel authenticator setup; stop interacting with credential form until user finishes. Supabase project creation still unverified, previously awaiting user password entry.
+- Latest usage check 80% five-hour used, zero reset credits. Preserve all progress; no automated sending is active.
