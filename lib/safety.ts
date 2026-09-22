@@ -1,7 +1,27 @@
 import type { Contact, Message, Settings } from './types';
 export function normalizedEmail(s:string){return s.trim().toLowerCase();}
 export function emailIdentity(s:string){const e=normalizedEmail(s);const [local,domain]=e.split('@');return ['gmail.com','googlemail.com'].includes(domain)?`${local.split('+')[0].replaceAll('.','')}@gmail.com`:e;}
-export function identitiesFor(c:Partial<Contact>){return [...new Set([c.email,...(c.alternateEmails||[])].filter(Boolean).map(e=>'email:'+emailIdentity(e!)).concat(c.linkedin?['linkedin:'+c.linkedin.toLowerCase().replace(/\/$/,'').split('?')[0]]:[]))];}
+/** Public profile identity only; names and employers are not unique identities. */
+export function canonicalLinkedin(raw:string){
+ try{
+  const u=new URL(raw.trim());
+  if(!['http:','https:'].includes(u.protocol)||u.username||u.password||u.port||! /^(?:www\.|m\.|[a-z]{2,3}\.)?linkedin\.com$/i.test(u.hostname))return '';
+  const slug=u.pathname.match(/^\/in\/([a-z0-9_%~-]+)(?:\/|$)/i)?.[1];
+  if(!slug)return '';
+  const normalized=slug.toLowerCase().replace(/%([0-9a-f]{2})/g,(escape,hex)=>{const c=String.fromCharCode(parseInt(hex,16));return /^[a-z0-9_~-]$/i.test(c)?c.toLowerCase():escape;});
+  return `https://www.linkedin.com/in/${normalized}`;
+ }catch{return '';}
+}
+export function identitiesFor(c:Partial<Contact>){const linkedin=canonicalLinkedin(c.linkedin||'');return [...new Set([c.email,...(c.alternateEmails||[])].filter(e=>Boolean(e?.trim())).map(e=>'email:'+emailIdentity(e!)).concat(linkedin?['linkedin:'+linkedin]:[]))];}
+export function normalizeAlternateEmails(raw:unknown){
+ let input=raw;
+ if(typeof input==='string')input=input.trim().startsWith('[')?JSON.parse(input):input.split(/[;,\n]/);
+ if(input===undefined||input===null||input==='')return [];
+ if(!Array.isArray(input))throw Error('Alternate emails must be a list.');
+ const emails=[...new Set(input.map((x:unknown)=>normalizedEmail(String(x))).filter(Boolean))];
+ if(emails.length>30||emails.some(e=>!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e)))throw Error('Enter at most 30 valid alternate emails.');
+ return emails;
+}
 export function safeUrl(s:string){try {const u=new URL(s);return u.protocol==='https:'&&!u.username&&!u.password?u.href:'';}catch{return '';}}
 export function csvCell(value:unknown){let s=String(value??'');if(/^[\s]*[=+@\-\t\r]/.test(s)) s="'"+s;return '"'+s.replaceAll('"','""')+'"';}
 export function csv(rows:Record<string,unknown>[]){if(!rows.length)return '';const headers=Object.keys(rows[0]);return [headers.map(csvCell).join(','),...rows.map(r=>headers.map(h=>csvCell(r[h])).join(','))].join('\r\n');}
