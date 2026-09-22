@@ -76,3 +76,5 @@ Citi corrected, asset management added, internship selection may depend on recip
 - Usage check: 26% five-hour used, 4% weekly used, ZERO reset credits. No reset tool was invoked. User's earlier final reset instruction cannot be fulfilled without an available credit.
 - GitHub CLI downloaded from official release to /tmp/common-ground-gh. Device sign-in pending user authorization. Never store tokens in this repository.
 - Earlier integration tests targeted the retired local D1 authentication harness and are not proof of Supabase production integration.
+- Local source committed as a4316c6; remote configured, not pushed pending GitHub device authorization. Production localhost preview session 33391. Verified /demo renders, /api/workspace returns 401 without auth, / redirects to sign-in (307), health reports sending disabled.
+- Latest usage checkpoint: 52% five-hour used (48% remaining), 8% weekly used, zero reset credits. Account-dependent deployment paused pending user authorization/password entry, not complete.
