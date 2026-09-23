@@ -102,3 +102,15 @@ User explicitly cancelled Vercel and requested Supabase-only deployment. Stop Ve
 - Fixed Vercel variable types: public Supabase URL/publishable key and protected-owner flag must be Config; credentials remain Secrets. Production values synchronized from verified local configuration. Do not print or commit credentials.
 - Final TypeScript and 21 tests passed; hosted production build passed. GitHub CI passed for source commit 087d8ef: https://github.com/angelazhou29/common-ground/actions/runs/35790002274.
 - Latest usage checkpoint: 82% five-hour used (18% remaining), zero reset credits. No reset consumed. App data is persisted independently in Supabase, with private local exports.
+
+
+## Sales & Trading-only release (2026-09-23, pending migration)
+- User explicitly selected Sales & Trading ONLY and supplied a replacement template including a 15-minute call request and résumé sentence; these supersede earlier no-call/no-resume wording. Template is saved privately, never committed in source. Gmail URLs cannot attach files; UI reminds owner to attach PDF and check From before sending.
+- Integrated PR #1 lifetime identity/reservation implementation into isolated common-ground-release checkout. Shared reviewQueue drives both Review and Waiting for approval; off-scope wealth-management drafts remain in history but cannot be newly drafted or handed to Gmail. Discovery has only S&T queries and a weekday schedule.
+- Added editable template, sales/trading paragraphs, confirmed desk/product/evidence fields. No invented product groups; missing evidence prevents drafting. Owner template has explicit non-experiment attribution.
+- Backed up all 103 records, 63 identities, 203 events and empty jobs under the original checkout private/backups/pre-lifetime-migration-1790132438999.json. Lifetime tables did not yet exist. Backup excludes Auth secrets and is not a full physical database dump.
+- 47 application tests, 11 database tests, TypeScript and local production build passed. Screen control timed out while attempting migration; asked user to run the complete tracked 202609220002_lifetime_outreach.sql. Do not deploy matching code until migration verification succeeds.
+- GitHub has no discovery secrets/variables configured. Waiting for user whether they have Brave credentials; no provider or schedule activated, no outreach sent.
+
+## Latest company and volume scope
+Only the 15 companies listed in lib/company-scope.ts qualify; explicit company aliases are normalized, with no name/title substring qualification. Balyasny added; RBC, CIBC and Ares removed. Target/max discovery is exactly 50 NEW people every calendar day, including weekends. Five rotating firms receive four slots and the other ten receive three. Unfilled targets produce a reported shortfall, never fabricated or off-scope replacements. Existing records remain in permanent history. The production migration and legacy wealth cleanup were applied on 2026-09-23; provider activation remains pending.

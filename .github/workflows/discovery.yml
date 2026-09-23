@@ -1,0 +1,38 @@
+name: Daily public-source contact discovery
+on:
+  schedule:
+    # Six idempotent checkpoints let a partial daily batch resume without bursts.
+    - cron: '23 */4 * * *'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: daily-contact-discovery
+  cancel-in-progress: false
+jobs:
+  discover:
+    if: vars.DISCOVERY_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.19.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Discover with durable history and request budgets
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          OWNER_USER_ID: ${{ secrets.OWNER_USER_ID }}
+          BRAVE_SEARCH_API_KEY: ${{ secrets.BRAVE_SEARCH_API_KEY }}
+          DISCOVERY_ENABLED: 'true'
+          DISCOVERY_ALLOWED_HOSTS: ${{ vars.DISCOVERY_ALLOWED_HOSTS }}
+          DISCOVERY_CONTACT_URL: ${{ vars.DISCOVERY_CONTACT_URL }}
+          DISCOVERY_MAX_SEARCHES: ${{ vars.DISCOVERY_MAX_SEARCHES }}
+          DISCOVERY_MAX_PAGES: ${{ vars.DISCOVERY_MAX_PAGES }}
+        run: node --experimental-strip-types jobs/discover.ts
