@@ -1,8 +1,9 @@
+import {allowedCompany} from './company-scope.ts';
 import type {Contact, Settings} from './types.ts';
 import {isSalesAndTrading} from './targeting.ts';
 
 export function personalizedTemplate(c:Contact,s:Settings){
-  if(!isSalesAndTrading(c))throw Error('Only Sales & Trading contacts are eligible for new outreach.');
+  if(!isSalesAndTrading(c)||!allowedCompany(c.company))throw Error('Only Sales & Trading contacts are eligible for new outreach.');
   const sales=/\bsales\b/i.test(c.title),trading=/\b(trading|trader)\b/i.test(c.title);
   const desk=c.desk||(sales&&!trading?'sales':trading&&!sales?'trading':'');
   if(!desk||!c.productGroup?.trim()||!c.deskEvidence?.trim()||!c.sources.length)throw Error('Confirm the sales/trading desk, product group, and supporting evidence before drafting.');

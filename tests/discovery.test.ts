@@ -6,7 +6,7 @@ import {queryPlan,publishedPeople,corroborates,discoveredContact,QUERY_RECIPES,e
 import {allowedSource,robotsPolicy,publicIpv4,PublicSourceReader} from '../lib/discovery-policy.ts';
 import {braveSearch,discoveryConfig,runDiscoveryJob} from '../lib/discovery-job.ts';
 
-const person={'@type':'Person',name:'Fixture Person',jobTitle:'Vice President, Fixed Income Trading',worksFor:{name:'Fixture Markets'},email:'fixture@fixtures.test',sameAs:'https://www.linkedin.com/in/fixture-person',address:{addressLocality:'Chicago'}};
+const person={'@type':'Person',name:'Fixture Person',jobTitle:'Vice President, Fixed Income Trading',worksFor:{name:'Wells Fargo'},email:'fixture@fixtures.test',sameAs:'https://www.linkedin.com/in/fixture-person',address:{addressLocality:'Chicago'}};
 const html=(p:unknown=person)=>`<script type="application/ld+json">${JSON.stringify(p)}</script>`;
 const env={DISCOVERY_ENABLED:'true',BRAVE_SEARCH_API_KEY:'fixture-secret',DISCOVERY_ALLOWED_HOSTS:'alpha.example.org,beta.example.org',DISCOVERY_CONTACT_URL:'https://operator.example.org/contact'};
 
@@ -30,9 +30,9 @@ test('independent corroboration requires matching current employer, role and sta
 });
 test('saved targeting, regions and exclusions constrain both queries and accepted profiles',()=>{
   const p=publishedPeople(html(),'https://alpha.example.org/bio')[0];
-  assert.equal(matchesPreferences(p,{targets:'Fixture Markets',regions:'Chicago'}),true);
+  assert.equal(matchesPreferences(p,{targets:'Wells Fargo',regions:'Chicago'}),true);
   assert.equal(matchesPreferences(p,{regions:'New York'}),false);
-  assert.equal(matchesPreferences(p,{exclusions:'Fixture Markets'}),false);
+  assert.equal(matchesPreferences(p,{exclusions:'Wells Fargo'}),false);
   assert.equal(matchesPreferences(p,{targets:'Unrelated Firm'}),false);
   assert.match(queryWithPreferences('trader',{regions:'Chicago; New York',exclusions:'Retail'},'2026-09-22'),/-"Retail"/);
 });

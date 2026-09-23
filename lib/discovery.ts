@@ -1,3 +1,4 @@
+import {allowedCompany,canonicalCompany} from './company-scope.ts';
 import type {Contact,Source} from './types.ts';
 import {canonicalLinkedin,normalizedEmail} from './safety.ts';
 import {isSalesAndTrading,contactLevel} from './targeting.ts';
@@ -15,11 +16,12 @@ export type DiscoveryPreferences={targets?:string;regions?:string;exclusions?:st
 function terms(value:string|undefined){return (value||'').split(/[,;\n]/).map(x=>x.trim().slice(0,100)).filter(Boolean).slice(0,30);}
 function normalized(value:string){return value.toLowerCase().replace(/&/g,' and ').replace(/[^\p{L}\p{N}]+/gu,' ').trim();}
 export function matchesPreferences(person:PublishedPerson,preferences:DiscoveryPreferences):boolean {
+  if(!allowedCompany(person.company))return false;
   const text=normalized(`${person.name} ${person.company} ${person.title} ${person.location}`);
   if(terms(preferences.exclusions).some(term=>text.includes(normalized(term))))return false;
   const regions=terms(preferences.regions);if(regions.length&&!regions.some(r=>normalized(person.location).includes(normalized(r))))return false;
   const targets=terms(preferences.targets).filter(t=>!/^sales\s*(?:&|and)\s*trading$/i.test(t));
-  return !targets.length||targets.some(t=>text.includes(normalized(t)));
+  return !targets.length||targets.some(t=>canonicalCompany(t)!==''&&canonicalCompany(t)===canonicalCompany(person.company));
 }
 export function queryWithPreferences(query:string,preferences:DiscoveryPreferences,day:string):string {
   const regions=terms(preferences.regions),targets=terms(preferences.targets),index=Math.floor(Date.parse(day)/86400000);

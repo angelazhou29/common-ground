@@ -13,11 +13,11 @@ export function discoveryConfig(env:Environment=process.env):DiscoveryConfig {
   const contact=env.DISCOVERY_CONTACT_URL||'';
   let validContact=false;try{const u=new URL(contact);validContact=u.protocol==='https:'&&!u.username&&!u.password;}catch{}
   const configured=Boolean(env.BRAVE_SEARCH_API_KEY&&hosts.length&&hosts.every(h=>allowedSource('https://'+h,hosts))&&validContact);
-  return {enabled:env.DISCOVERY_ENABLED==='true',configured,apiKey:env.BRAVE_SEARCH_API_KEY||'',hosts,agent:`${DISCOVERY_AGENT}/1.0 (+${contact})`,dailyCap:bounded(env.DISCOVERY_DAILY_CAP,10,25),searchCap:bounded(env.DISCOVERY_MAX_SEARCHES,12,30),pageCap:bounded(env.DISCOVERY_MAX_PAGES,24,60),note:configured?'Configured public research only; published email still requires outreach review.':'Configure a licensed Brave Search API key, approved public source hosts and a bot contact URL to activate discovery.'};
+  return {enabled:env.DISCOVERY_ENABLED==='true',configured,apiKey:env.BRAVE_SEARCH_API_KEY||'',hosts,agent:`${DISCOVERY_AGENT}/1.0 (+${contact})`,dailyCap:bounded(env.DISCOVERY_DAILY_CAP,75,75),searchCap:bounded(env.DISCOVERY_MAX_SEARCHES,12,30),pageCap:bounded(env.DISCOVERY_MAX_PAGES,24,60),note:configured?'Configured public research only; published email still requires outreach review.':'Configure a licensed Brave Search API key, approved public source hosts and a bot contact URL to activate discovery.'};
 }
-type JobPayload={startedAt:string;finishedAt?:string;updatedAt:string;searchRequests:number;pageRequests:number;completedQueries:string[];queryStats:QueryObservation[];accepted:number;salesAndTrading:number;fallback:number;note:string;error?:string;plan?:string[]};
+type JobPayload={target?:number;startedAt:string;finishedAt?:string;updatedAt:string;searchRequests:number;pageRequests:number;completedQueries:string[];queryStats:QueryObservation[];accepted:number;salesAndTrading:number;fallback:number;note:string;error?:string;plan?:string[]};
 function initialPayload(at:string):JobPayload{return {startedAt:at,updatedAt:at,searchRequests:0,pageRequests:0,completedQueries:[],queryStats:[],accepted:0,salesAndTrading:0,fallback:0,note:'Public-source discovery; no messages created or sent.'};}
-export function payloadSummary(payload:Partial<JobPayload>){return {accepted:payload.accepted||0,salesAndTrading:payload.salesAndTrading||0,fallback:payload.fallback||0,requests:(payload.searchRequests||0)+(payload.pageRequests||0),rejected:(payload.queryStats||[]).reduce((n,q)=>n+q.rejected,0)};}
+export function payloadSummary(payload:Partial<JobPayload>){return {target:payload.target||75,shortfall:Math.max(0,(payload.target||75)-(payload.accepted||0)),accepted:payload.accepted||0,salesAndTrading:payload.salesAndTrading||0,fallback:payload.fallback||0,requests:(payload.searchRequests||0)+(payload.pageRequests||0),rejected:(payload.queryStats||[]).reduce((n,q)=>n+q.rejected,0)};}
 export async function discoveryStatus(db:SupabaseClient,owner:string,preference:boolean,env:Environment=process.env):Promise<DiscoveryStatus> {
   const config=discoveryConfig(env);
   const result=await db.from('jobs').select('state,payload').eq('owner',owner).eq('kind','discovery').order('due',{ascending:false}).limit(1);
@@ -98,7 +98,7 @@ export async function runDiscoveryJob(db:SupabaseClient,owner:string,env:Environ
     if(history.error)throw Error('Query learning history unavailable');
     const observations=(history.data||[]).flatMap(j=>(j.payload.queryStats||[]) as QueryObservation[]);
     const plan=payload.plan?.map(key=>QUERY_RECIPES.find(q=>q.id===key)).filter(q=>!!q)||queryPlan(observations,day);
-    payload.plan=plan.map(q=>q.id);await persist();
+    payload.target=config.dailyCap;payload.plan=plan.map(q=>q.id);await persist();
     for(const recipe of plan){
       if(payload.accepted>=config.dailyCap)break;
       if(payload.completedQueries.includes(recipe.id))continue;
@@ -140,7 +140,7 @@ export async function runDiscoveryJob(db:SupabaseClient,owner:string,env:Environ
       payload.completedQueries.push(recipe.id);await persist();
     }
     payload.finishedAt=new Date().toISOString();payload.error=undefined;
-    payload.note='Completed bounded research. Search results are not exhaustive; accepted contacts retain public evidence and require outreach review.';
+    payload.note=`Found ${payload.accepted} of ${config.dailyCap} new contacts; shortfall ${Math.max(0,config.dailyCap-payload.accepted)}. No repeats or off-target fillers. Research is bounded by source availability and request limits.`;
     await persist('complete');
     return {ok:true,state:'complete',summary:payloadSummary(payload)};
   }catch(error){
