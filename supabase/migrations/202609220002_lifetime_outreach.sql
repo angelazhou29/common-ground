@@ -28,7 +28,7 @@ grant select on public.contact_identity_history,public.outreach_history to authe
 
 create function public.canonical_email(p_value text) returns text
 language plpgsql immutable set search_path='' as $$
-declare v text:=lower(btrim(coalesce(p_value,''))); local_part text; domain_part text;
+declare v text:=lower(regexp_replace(coalesce(p_value,''),'^[[:space:]]+|[[:space:]]+$','','g')); local_part text; domain_part text;
 begin
  if v='' then return ''; end if;
  local_part:=split_part(v,'@',1); domain_part:=split_part(v,'@',2);
@@ -38,10 +38,12 @@ end $$;
 
 create function public.canonical_linkedin(p_value text) returns text
 language plpgsql immutable set search_path='' as $$
-declare slug text; n integer; ch text;
+declare slug text; n integer; ch text; raw text;
 begin
- slug:=substring(lower(btrim(coalesce(p_value,''))) from '^https?://(?:www\.|m\.|[a-z]{2,3}\.)?linkedin\.com/in/([a-z0-9_%~-]+)(?:/|\?|#|$)');
+ raw:=lower(regexp_replace(coalesce(p_value,''),'^[[:space:]]+|[[:space:]]+$','','g'));
+ slug:=substring(raw from '^https?://(?:www\.|m\.|[a-z]{2,3}\.)?linkedin\.com/in/([a-z0-9_%~-]+)(?:/[a-z0-9_%~/-]*)?(?:[?#][^\r\n]*)?$');
  if slug is null then return ''; end if;
+ if split_part(split_part(raw,'?',1),'#',1) ~ '%(?![0-9a-f]{2})|%(?:2e|2f|5c)' then return ''; end if;
  -- Decode only unreserved profile-slug bytes, matching the application helper.
  for n in 45..126 loop
   ch:=chr(n);
@@ -104,7 +106,8 @@ language plpgsql stable security definer set search_path='' as $$
 begin
  if auth.uid() is null or auth.uid()<>p_owner then raise exception 'Unauthorized'; end if;
  return (select coalesce(jsonb_agg(jsonb_build_object('contact_id',c.id)),'[]'::jsonb) from public.records c where c.owner=p_owner and c.kind='contact'
- and exists(select 1 from public.related_contact_ids(p_owner,c.id) related join public.outreach_history h on h.owner=p_owner and h.contact_id=related.contact_id));
+ and (exists(select 1 from public.related_contact_ids(p_owner,c.id) related join public.outreach_history h on h.owner=p_owner and h.contact_id=related.contact_id)
+ or exists(select 1 from public.related_contact_ids(p_owner,c.id) related join public.records suppressed on suppressed.owner=p_owner and suppressed.id=related.contact_id and suppressed.kind='contact' where suppressed.data->>'excluded'='true')));
 end $$;
 
 create or replace function public.save_contact(p_owner uuid,p_id uuid,p_version integer,p_data jsonb,p_keys text[])
@@ -160,7 +163,7 @@ begin
   end if;
   if p_data->>'state' in ('draft','waiting_approval','queued') or p_version is null then
    if exists(select 1 from public.related_contact_ids(p_owner,cid) r join public.outreach_history h on h.owner=p_owner and h.contact_id=r.contact_id) then raise exception 'This person was already prepared or sent an email. Lifetime hold.'; end if;
-   if exists(select 1 from public.records c where c.owner=p_owner and c.id=cid and c.data->>'excluded'='true') then raise exception 'This person is suppressed'; end if;
+   if exists(select 1 from public.related_contact_ids(p_owner,cid) r join public.records c on c.owner=p_owner and c.id=r.contact_id and c.kind='contact' where c.data->>'excluded'='true') then raise exception 'This person is suppressed in lifetime identity history'; end if;
    if exists(select 1 from public.related_contact_ids(p_owner,cid) r join public.records m on m.owner=p_owner and m.kind='message' and m.data->>'contactId'=r.contact_id::text where m.id<>p_id and coalesce(m.data->>'state','')<>'cancelled') then raise exception 'An email already exists for this person'; end if;
   end if;
  end if;
@@ -192,7 +195,8 @@ begin
  select * into claimed from public.outreach_history where owner=p_owner and message_id=m.id;
  if p_mode='prepare' then
   if claimed.message_id is not null or nullif(m.data->>'gmailPreparedAt','') is not null then raise exception 'This email was already opened in Gmail. Another handoff is permanently blocked.'; end if;
-  if c.data->>'excluded'='true' or c.data->>'synthetic'='true' or coalesce(c.data->>'identityConfirmed','false')<>'true' then raise exception 'Review this contact before opening Gmail'; end if;
+  if exists(select 1 from public.related_contact_ids(p_owner,c.id) r join public.records suppressed on suppressed.owner=p_owner and suppressed.id=r.contact_id and suppressed.kind='contact' where suppressed.data->>'excluded'='true') then raise exception 'This person is suppressed in lifetime identity history'; end if;
+  if c.data->>'synthetic'='true' or coalesce(c.data->>'identityConfirmed','false')<>'true' then raise exception 'Review this contact before opening Gmail'; end if;
   if coalesce(c.data->>'email','') !~ '^[^[:space:]@]+@[^[:space:]@]+\.[^[:space:]@]+$' or c.data->>'verification' in ('invalid','catch-all') then raise exception 'A supported business email is required'; end if;
   if coalesce(c.data->>'emailOrigin','') not in ('published','authorized provider') or jsonb_typeof(c.data->'sources') is distinct from 'array' or jsonb_array_length(c.data->'sources')=0 then raise exception 'A supported email source is required'; end if;
   if btrim(coalesce(m.data->>'subject',''))='' or btrim(coalesce(m.data->>'body',''))='' or m.data->>'body' ~ '[\[\]{}<>]' then raise exception 'Resolve empty content or placeholders first'; end if;
