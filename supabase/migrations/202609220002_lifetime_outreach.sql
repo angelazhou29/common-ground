@@ -112,11 +112,16 @@ end $$;
 
 create or replace function public.save_contact(p_owner uuid,p_id uuid,p_version integer,p_data jsonb,p_keys text[])
 returns uuid language plpgsql security definer set search_path='' as $$
-declare key text; affected integer; old_data jsonb; keys text[];
+declare key text; affected integer; old_data jsonb; keys text[]; field text;
 begin
  if auth.uid() is null or p_owner<>auth.uid() then raise exception 'Unauthorized'; end if;
  perform pg_advisory_xact_lock(hashtextextended(p_owner::text,0));
  select data into old_data from public.records where id=p_id and owner=p_owner and kind='contact' for update;
+ -- The original discovery audit fields are server-owned and survive manual edits.
+ foreach field in array array['discoveredAt','discoveryDate','discoveryQuery','selectionReason','selectedAt'] loop
+  p_data:=p_data-field;
+  if old_data ? field then p_data:=p_data||jsonb_build_object(field,old_data->field); end if;
+ end loop;
  if old_data->>'excluded'='true' and coalesce(p_data->>'excluded','false')<>'true' then raise exception 'Suppression cannot be removed by editing'; end if;
  if coalesce(p_data->>'linkedin','')<>'' and public.canonical_linkedin(p_data->>'linkedin')='' then raise exception 'Use a public LinkedIn profile URL'; end if;
  -- Never trust caller-supplied identity keys, including the legacy p_keys argument.

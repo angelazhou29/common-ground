@@ -103,11 +103,15 @@ test('database migration preserves lifetime identities and enforces outreach res
   });
   await t.test('service discovery skips all old identities and cannot erase lifetime claims',async()=>{
     await db.exec('reset role');await db.query("select set_config('request.jwt.claim.sub','',false),set_config('request.jwt.claim.role','service_role',false)");await db.exec('set role service_role');
-    const data=contact('discovered');
-    assert.ok((await db.query('select public.save_discovered_contact($1,$2) id',[owner,data])).rows[0].id);
+    const data=contact('discovered',{discoveryDate:'2026-09-22',discoveryQuery:'markets-sales'});
+    const discoveredId=(await db.query('select public.save_discovered_contact($1,$2) id',[owner,data])).rows[0].id;
+    assert.ok(discoveredId);
     assert.equal((await db.query('select public.save_discovered_contact($1,$2) id',[owner,data])).rows[0].id,null);
     assert.equal((await db.query('select public.save_discovered_contact($1,$2) id',[owner,contact('again',{email:'old.deleted@example.com'})])).rows[0].id,null);
     await assert.rejects(db.query('delete from public.outreach_history'),/permission denied/);
     await asOwner();
+    await saveContact(contact('discovered',{discoveryDate:'2099-01-01'}),discoveredId,1);
+    assert.equal((await row(discoveredId)).data.discoveryDate,'2026-09-22');
+    assert.equal((await row(discoveredId)).data.discoveryQuery,'markets-sales');
   });
 });
