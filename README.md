@@ -4,7 +4,7 @@ Private networking outreach workspace built with Next.js, Supabase Auth/Postgres
 
 ## Run locally
 
-Use Node 24 and pnpm 11.19.0. Copy `.env.example` to `.env.local`, fill the Supabase URL, publishable key and owner email, apply `supabase/migrations/202609220001_initial.sql` in the project's SQL editor, and configure Supabase Auth redirect URLs for `/auth/confirm` on your deployment and localhost.
+Use Node 24 and pnpm 11.19.0. Copy `.env.example` to `.env.local`, fill the Supabase URL, publishable key and owner email, apply the SQL files in `supabase/migrations/` in filename order, and configure Supabase Auth redirect URLs for `/auth/confirm` on your deployment and localhost. For an existing deployment, apply only unapplied migrations. Migration `202609220002_lifetime_outreach.sql` must be applied before deploying this release.
 
 ```
 pnpm install --frozen-lockfile
@@ -22,18 +22,23 @@ Import this private personal GitHub repository into Vercel with the Next.js pres
 ```
 pnpm run typecheck
 pnpm test
+pnpm run test:db
 pnpm run build
 ```
 
 ## Implemented and pending
 
-Implemented: contact evidence and deduplication, import/export, template drafting, approval review, manually recorded conversations and sent history, suppression, settings, audit activity, statistics, and a locally trained reply-classification model that abstains when evidence is insufficient. The initial schema and owner workspace have been validated against Supabase.
+Implemented: Sales & Trading-first contact and review ordering; role, title-derived level, sourced email and LinkedIn visibility; public-source discovery with a licensed search API adapter; durable daily query observations; contact evidence, import/export, template drafting, individual approval review, manually recorded conversations and sent history, suppression, audit activity, and statistics. Missing profile links, seniority and verification are explicitly labeled. The visible workspace refreshes every minute while preserving unsaved settings.
 
-Not yet implemented: Gmail OAuth/send/reply sync, automated prospect discovery/email verification, Google Calendar integration, production backups and restore verification. The review dialog opens the exact saved email in Gmail only after individual approval. The owner clicks Send in Gmail, then records it as sent in the workspace. Opening a compose window never counts as a send. Repeat compose handoffs are blocked; check Gmail Drafts or Sent if interrupted. The app cannot observe messages or edits made in Gmail automatically.
+Permanent identity history links normalized email addresses, explicitly supplied alternate emails and canonical LinkedIn profile URLs. A database transaction reserves the person before returning a Gmail compose URL. Claims and identities survive cancellations and contact deletion, and the migration backfills earlier sent/manual/Gmail handoff history. Existing historical aliases are connected transitively; names alone never merge people. Contact and message versions must match the owner's review. If history cannot be checked, outreach stops.
 
-The hourly GitHub workflow is disabled unless `AUTOMATION_ENABLED=true`. It only writes a health checkpoint through `/api/jobs`; it does not discover contacts or send messages. Enabling it requires `APP_URL`, `CRON_SECRET`, and server-only Supabase service-role/owner configuration. Free-tier scheduled execution is best-effort.
+Not implemented: Gmail OAuth/send/reply sync, mailbox deliverability verification, Google Calendar integration, or production backup/restore automation. The owner still sends each individually reviewed email in Gmail and then records it as sent. Opening a compose window never counts as delivery. A lost compose response still leaves a permanent reservation; inspect Gmail Drafts or Sent rather than requesting another handoff. The app cannot prevent a separate manual Gmail send, or recognize a person's entirely unknown identities. Import relevant prior outreach and known aliases before use.
 
-See `docs/LEARNING_AND_STATISTICS.md` for measurement limitations and `docs/PROGRESS.md` for development history; newer entries supersede historical architecture notes.
+Daily discovery has a separate GitHub Actions workflow and runs directly against approved providers and Supabase, so it does not require weakening Vercel's private access gate. It searches the configured Sales & Trading recipes before considering finance fallback roles. Public structured biographies require name, role, employer, direct published email, LinkedIn and corroborating evidence from another approved host. Nothing is invented to fill a quota. Query ordering learns from accepted yield, with daily exploration; this is a measured search policy, not a claim that a new AI model is trained each day. See [discovery setup](docs/DISCOVERY.md) for credentials, source permissions, budgets, activation and limitations. Scheduled execution is best-effort, and no discovery is active until configured and enabled.
+
+The earlier hourly health workflow remains independently disabled by default. No background process sends emails.
+
+See [operations](docs/OPERATIONS.md) for the migration and release sequence, `docs/LEARNING_AND_STATISTICS.md` for measurement limitations and `docs/PROGRESS.md` for development history; newer entries supersede historical architecture notes.
 
 ## Start sending with individual review
 

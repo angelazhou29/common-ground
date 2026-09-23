@@ -1,5 +1,7 @@
 # Operating guide
 
+> Historical operating notes below describe the initial foundation. For the current Sales & Trading release, database migration, permanent history protection and activation sequence, use [RELEASE.md](RELEASE.md) and [DISCOVERY.md](DISCOVERY.md). Those documents supersede the old D1/Sites and health-only descriptions here.
+
 ## Current release
 This is the working private workspace foundation, not activated outreach automation. Demo people and sample emails are fictional. No email can be sent from this release. The personal page remains an owner-only preview until reviewed.
 
