@@ -44,7 +44,7 @@ export function canonicalCompany(value?: string): string {
   while(name!==previous){previous=name;name=name.replace(/\s+(?:and co|incorporated|inc|corporation|corp|limited|ltd|llc|llp|plc|ag|s a|sa|n a|co)$/,'').trim();}
   if (/^ubs(?: (?:group|financial services|securities|investment bank|global markets))?$/.test(name)) return 'ubs';
   if (/^(?:jpmorgan|j p morgan|jp morgan)(?: chase| securities)?$/.test(name)) return 'jpmorgan';
-  if (/^(?:bofa(?: securities)?|bank (?:of )?america(?: merrill lynch)?)$/.test(name)) return 'bank of america';
+  if (/^(?:bofa(?: securities)?|bank (?:of )?america(?: securities| merrill lynch)?)$/.test(name)) return 'bank of america';
   if (/^evercore(?: isi)?$/.test(name)) return 'evercore';
   if (/^wells fargo(?: securities| bank| and company)?$/.test(name)) return 'wells fargo';
   if (/^deutsche bank(?: securities)?$/.test(name)) return 'deutsche bank';
@@ -53,8 +53,8 @@ export function canonicalCompany(value?: string): string {
   if (/^hsbc(?: securities| bank| holdings)?$/.test(name)) return 'hsbc';
   if (/^morgan stanley(?: and co)?$/.test(name)) return 'morgan stanley';
   if (/^blackrock$/.test(name)) return 'blackrock';
-  if (/^goldman sachs(?: group)?$/.test(name)) return 'goldman sachs';
-  if (/^barclays(?: capital)?$/.test(name)) return 'barclays';
+  if (/^(?:the )?goldman sachs(?: group)?$/.test(name)) return 'goldman sachs';
+  if (/^barclays(?: bank| capital)?$/.test(name)) return 'barclays';
   if (/^fidelity(?: investments| management and research)?$/.test(name)) return 'fidelity';
   if (/^(?:balyasny|balyasny asset management|bam)$/.test(name)) return 'balyasny';
   return name || '__unknown_company__';

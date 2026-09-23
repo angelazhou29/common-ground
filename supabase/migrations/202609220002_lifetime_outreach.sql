@@ -66,12 +66,12 @@ begin
  if v ~ '^nomura( securities| holdings| securities international)?$' then return 'nomura'; end if;
  if v ~ '^hsbc( securities| bank| holdings)?$' then return 'hsbc'; end if;
  if v ~ '^morgan stanley( and co)?$' then return 'morgan stanley'; end if;
- if v ~ '^(bofa( securities)?|bank (of )?america( merrill lynch)?)$' then return 'bank of america'; end if;
+ if v ~ '^(bofa( securities)?|bank (of )?america( securities| merrill lynch)?)$' then return 'bank of america'; end if;
  if v='blackrock' then return 'blackrock'; end if;
  if v ~ '^(jpmorgan|j p morgan|jp morgan)( chase| securities)?$' then return 'jpmorgan'; end if;
- if v ~ '^goldman sachs( group)?$' then return 'goldman sachs'; end if;
+ if v ~ '^(the )?goldman sachs( group)?$' then return 'goldman sachs'; end if;
  if v ~ '^ubs( group|financial services|securities|investment bank|global markets)?$' then return 'ubs'; end if;
- if v ~ '^barclays( capital)?$' then return 'barclays'; end if;
+ if v ~ '^barclays( bank| capital)?$' then return 'barclays'; end if;
  if v ~ '^fidelity( investments| management (and )?research)?$' then return 'fidelity'; end if;
  if v ~ '^(balyasny|balyasny asset management|bam)$' then return 'balyasny'; end if;
  return null;

@@ -34,6 +34,9 @@ test('known bank aliases share a company bucket without fuzzy-merging unrelated 
   for(const name of ['UBS','UBS AG','UBS Financial Services, Inc.','UBS Securities LLC'])assert.equal(canonicalCompany(name),'ubs');
   for(const name of ['JPMorgan','J.P. Morgan','JP Morgan','JPMorgan Chase & Co.'])assert.equal(canonicalCompany(name),'jpmorgan');
   for(const name of ['BofA','BofA Securities','Bank America','Bank of America Corporation'])assert.equal(canonicalCompany(name),'bank of america');
+  assert.equal(canonicalCompany('Bank of America Securities'),'bank of america');
+  assert.equal(canonicalCompany('The Goldman Sachs Group'),'goldman sachs');
+  assert.equal(canonicalCompany('Barclays Bank'),'barclays');
   assert.notEqual(canonicalCompany('UBS Partner Advisory'),canonicalCompany('UBS'));
   assert.notEqual(canonicalCompany('Morgan Stanley'),canonicalCompany('J.P. Morgan'));
   for(const name of ['', 'N/A', 'Unknown employer', 'Undisclosed company 2', 'Company 42'])assert.equal(canonicalCompany(name),'__unknown_company__');
