@@ -31,8 +31,8 @@ test('database migration preserves lifetime identities and enforces outreach res
   async function reserve(mid,cid,mode='prepare',sentAt=null){const m=await row(mid),c=await row(cid);return db.query('select public.reserve_outreach($1,$2,$3,$4,$5,$6)',[owner,mid,m.version,c.version,mode,sentAt]);}
 
   await t.test('database accepts the same explicit institution aliases as the application',async()=>{
-    const result=await db.query("select public.canonical_target_company(value) key from unnest(array['Wells Fargo & Company','Citigroup Global Markets','Nomura Securities International','HSBC Holdings','J.P. Morgan Securities','Fidelity Management & Research']) value");
-    assert.deepEqual(result.rows.map(row=>row.key),['wells fargo','citi','nomura','hsbc','jpmorgan','fidelity']);
+    const result=await db.query("select public.canonical_target_company(value) key from unnest(array['Wells Fargo & Company','Citigroup Global Markets','Nomura Securities International','HSBC Holdings','J.P. Morgan Securities','Fidelity Management & Research','Bank of America Securities','The Goldman Sachs Group','Barclays Bank']) value");
+    assert.deepEqual(result.rows.map(row=>row.key),['wells fargo','citi','nomura','hsbc','jpmorgan','fidelity','bank of america','goldman sachs','barclays']);
   });
 
   await asOwner();
