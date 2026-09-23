@@ -1,32 +1,31 @@
-import {allowedCompany,canonicalCompany} from './company-scope.ts';
 import type {Contact,Source} from './types.ts';
 import {canonicalLinkedin,normalizedEmail} from './safety.ts';
-import {isSalesAndTrading,contactLevel} from './targeting.ts';
+import {isSalesAndTrading,contactLevel,canonicalCompany,isAllowedTargetCompany,TARGET_COMPANIES} from './targeting.ts';
 
-export type QueryRecipe={id:string;family:'sales-trading'|'fallback';query:string};
+export type QueryRecipe={id:string;family:'sales-trading';query:string};
 export const QUERY_RECIPES:QueryRecipe[]=[
   {id:'markets-sales',family:'sales-trading',query:'"institutional sales" "team" "email"'},
   {id:'sales-trading',family:'sales-trading',query:'"sales and trading" "biography" "email"'},
   {id:'trading-desk',family:'sales-trading',query:'"trader" "fixed income" "team"'},
   {id:'equity-sales',family:'sales-trading',query:'"equity sales" "team" "contact"'},
 ];
-export type QueryObservation={id:string;searches:number;results:number;pages:number;profiles:number;qualified:number;accepted:number;duplicates:number;rejected:number;blocked:number;errors:number};
+export type QueryObservation={id:string;searches:number;results:number;pages:number;profiles:number;qualified:number;accepted:number;duplicates:number;rejected:number;blocked:number;errors:number;companyCapped?:number};
 export function emptyObservation(id:string):QueryObservation{return {id,searches:0,results:0,pages:0,profiles:0,qualified:0,accepted:0,duplicates:0,rejected:0,blocked:0,errors:0};}
 export type DiscoveryPreferences={targets?:string;regions?:string;exclusions?:string};
 function terms(value:string|undefined){return (value||'').split(/[,;\n]/).map(x=>x.trim().slice(0,100)).filter(Boolean).slice(0,30);}
 function normalized(value:string){return value.toLowerCase().replace(/&/g,' and ').replace(/[^\p{L}\p{N}]+/gu,' ').trim();}
 export function matchesPreferences(person:PublishedPerson,preferences:DiscoveryPreferences):boolean {
-  if(!allowedCompany(person.company))return false;
   const text=normalized(`${person.name} ${person.company} ${person.title} ${person.location}`);
-  if(terms(preferences.exclusions).some(term=>text.includes(normalized(term))))return false;
+  if(!isAllowedTargetCompany(person.company)||!isSalesAndTrading({title:person.title,industry:'Sales & Trading'} as Contact))return false;
+  if(terms(preferences.exclusions).some(term=>text.includes(normalized(term))||canonicalCompany(person.company)===canonicalCompany(term)))return false;
   const regions=terms(preferences.regions);if(regions.length&&!regions.some(r=>normalized(person.location).includes(normalized(r))))return false;
-  const targets=terms(preferences.targets).filter(t=>!/^sales\s*(?:&|and)\s*trading$/i.test(t));
-  return !targets.length||targets.some(t=>canonicalCompany(t)!==''&&canonicalCompany(t)===canonicalCompany(person.company));
+  return true;
 }
-export function queryWithPreferences(query:string,preferences:DiscoveryPreferences,day:string):string {
-  const regions=terms(preferences.regions),targets=terms(preferences.targets),index=Math.floor(Date.parse(day)/86400000);
+export function companyCount(counts:Record<string,number>,key:string):number{return Object.hasOwn(counts,key)?counts[key]:0;}
+export function queryWithPreferences(query:string,preferences:DiscoveryPreferences,day:string,focus:{recipeIndex?:number;company?:string}={}):string {
+  const regions=terms(preferences.regions),index=Math.floor(Date.parse(day)/86400000);
   const quote=(s:string)=>'"'+s.replace(/["\\]/g,' ').slice(0,80)+'"';
-  return [query,targets.length?quote(targets[index%targets.length]):'',regions.length?quote(regions[index%regions.length]):'',...terms(preferences.exclusions).slice(0,4).map(t=>'-'+quote(t))].filter(Boolean).join(' ');
+  return [query,quote(focus.company||TARGET_COMPANIES[(index+(focus.recipeIndex||0))%TARGET_COMPANIES.length].label),regions.length?quote(regions[(index+(focus.recipeIndex||0))%regions.length]):'',...terms(preferences.exclusions).slice(0,4).map(t=>'-'+quote(t))].filter(Boolean).join(' ');
 }
 export function queryPlan(history:QueryObservation[],day:string):QueryRecipe[] {
   const totals=new Map<string,{accepted:number;searches:number}>();
@@ -40,7 +39,7 @@ export function queryPlan(history:QueryObservation[],day:string):QueryRecipe[] {
     const explore=rows[Math.floor(Date.parse(day)/86400000)%rows.length];
     return [explore,...scored.filter(r=>r.id!==explore.id)];
   };
-  return rank(QUERY_RECIPES.filter(r=>r.family==='sales-trading'));
+  return rank(QUERY_RECIPES);
 }
 export type PublishedPerson={name:string;title:string;company:string;email:string;linkedin:string;location:string;url:string};
 const object=(value:unknown):Record<string,unknown>|null=>value&&typeof value==='object'&&!Array.isArray(value)?value as Record<string,unknown>:null;
@@ -64,7 +63,7 @@ export function publishedPeople(html:string,url:string):PublishedPerson[] {
     if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)||/^(info|contact|hello|sales|support|careers|recruiting|admin|office|team|press|media)@/i.test(email))continue;
     if(!people.some(p=>p.linkedin===linkedin))people.push({name,title,company:employer,email,linkedin,location,url});
   }
-  return people.slice(0,30);
+  return people.slice(0,100);
 }
 function visible(html:string){return html.replace(/<script\b[\s\S]*?<\/script>/gi,' ').replace(/<style\b[\s\S]*?<\/style>/gi,' ').replace(/<[^>]+>/g,' ').replace(/&(?:amp|nbsp|quot);/g,' ').replace(/\s+/g,' ').toLowerCase();}
 export function corroborates(person:PublishedPerson,html:string,url:string):boolean {
@@ -76,7 +75,6 @@ export function corroborates(person:PublishedPerson,html:string,url:string):bool
   const text=visible(html),raw=html.toLowerCase();
   return text.includes(person.name.toLowerCase())&&text.includes(person.company.toLowerCase())&&text.includes(person.title.toLowerCase())&&(raw.includes(person.linkedin.toLowerCase())||raw.includes(person.email));
 }
-export function discoveredContact(person:PublishedPerson,evidence:Source[],query:QueryRecipe,at:string):Contact {
-  const primary=isSalesAndTrading({title:person.title,industry:'Financial services'} as Contact);
-  return {id:'',name:person.name,title:person.title,company:person.company,email:person.email,linkedin:person.linkedin,location:person.location,industry:'Financial services',timezone:'',status:'Research needed',verification:'unknown',verifiedAt:'',emailOrigin:'published',identityConfirmed:true,fit:`Your published role is ${person.title} at ${person.company}.`,topic:person.title,notes:'Public structured biography corroborated by a separate approved source. Email is published, not deliverability-tested. Review currency and recipient timezone before outreach.',sources:evidence,synthetic:false,roleFamily:primary?'Sales & Trading':'Other finance',level:contactLevel({title:person.title} as Contact),discoveredAt:at,discoveryDate:at.slice(0,10),discoveryQuery:query.id,selectionReason:primary?'Sales & Trading priority; corroborated public professional profile.':'Fallback: the full configured Sales & Trading query set completed without filling today’s remaining slots.'};
+export function discoveredContact(person:PublishedPerson,evidence:Source[],query:QueryRecipe,at:string):Contact & {discoveryCompany:string} {
+  return {id:'',name:person.name,title:person.title,company:person.company,email:person.email,linkedin:person.linkedin,location:person.location,industry:'Sales & Trading',timezone:'',status:'Research needed',verification:'unknown',verifiedAt:'',emailOrigin:'published',identityConfirmed:true,fit:`Your published role is ${person.title} at ${person.company}.`,topic:person.title,notes:'Public structured biography corroborated by a separate approved source. Email is published, not deliverability-tested. Review currency and recipient timezone before outreach.',sources:evidence,synthetic:false,roleFamily:'Sales & Trading',level:contactLevel({title:person.title} as Contact),discoveredAt:at,discoveryDate:at.slice(0,10),discoveryCompany:canonicalCompany(person.company),discoveryQuery:query.id,selectionReason:'Sales & Trading role at an approved target company; corroborated public professional profile within the daily company quota.'};
 }

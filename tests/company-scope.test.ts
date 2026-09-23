@@ -14,10 +14,10 @@ test('all 15 approved employers and explicit aliases match; similar names do not
 test('a company mentioned in a name or role cannot satisfy the employer filter',()=>{
  const p={name:'Wells Fargo Example',title:'Sales to Wells Fargo',company:'Unrelated Firm',email:'test@example.com',linkedin:'',location:'Chicago',url:'https://example.com'};
  assert.equal(matchesPreferences(p,{targets:'Wells Fargo',regions:'Chicago'}),false);
- assert.equal(matchesPreferences({...p,company:'Wells Fargo Securities'},{targets:'Wells Fargo',regions:'Chicago'}),true);
+ assert.equal(matchesPreferences({...p,title:'Equity Sales Analyst',company:'Wells Fargo Securities'},{targets:'Wells Fargo',regions:'Chicago'}),true);
 });
-test('daily research target is 75, bounded without pretending a shortfall is filled',()=>{
- assert.equal(discoveryConfig({}).dailyCap,75);
- assert.equal(discoveryConfig({DISCOVERY_DAILY_CAP:'999'}).dailyCap,75);
- assert.equal(payloadSummary({accepted:12,target:75}).shortfall,63);
+test('daily research target is 50, fixed without pretending a shortfall is filled',()=>{
+ assert.equal(discoveryConfig({}).dailyCap,50);
+ assert.equal(discoveryConfig({DISCOVERY_DAILY_CAP:'999'}).dailyCap,50);
+ assert.equal(payloadSummary({accepted:12,target:50}).shortfall,38);
 });

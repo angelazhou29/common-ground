@@ -1,7 +1,8 @@
 name: Daily public-source contact discovery
 on:
   schedule:
-    - cron: '23 13 * * *'
+    # Six idempotent checkpoints let a partial daily batch resume without bursts.
+    - cron: '23 */4 * * *'
   workflow_dispatch:
 permissions:
   contents: read
@@ -12,7 +13,7 @@ jobs:
   discover:
     if: vars.DISCOVERY_ENABLED == 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 8
+    timeout-minutes: 35
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -32,7 +33,6 @@ jobs:
           DISCOVERY_ENABLED: 'true'
           DISCOVERY_ALLOWED_HOSTS: ${{ vars.DISCOVERY_ALLOWED_HOSTS }}
           DISCOVERY_CONTACT_URL: ${{ vars.DISCOVERY_CONTACT_URL }}
-          DISCOVERY_DAILY_CAP: ${{ vars.DISCOVERY_DAILY_CAP }}
           DISCOVERY_MAX_SEARCHES: ${{ vars.DISCOVERY_MAX_SEARCHES }}
           DISCOVERY_MAX_PAGES: ${{ vars.DISCOVERY_MAX_PAGES }}
         run: node --experimental-strip-types jobs/discover.ts

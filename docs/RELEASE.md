@@ -10,7 +10,7 @@
 
 ## What changed
 
-Only Sales & Trading contacts enter the shared Review / Waiting for approval queue. Other roles remain in Contacts and history; they cannot create new drafts or Gmail handoffs. Role comes from the recorded title. Level is a conservative interpretation of that title, with `Not established` when unsupported. A LinkedIn search link is clearly distinguished from a sourced individual profile URL. Missing addresses and profiles are never manufactured.
+Only Sales & Trading contacts at the 15 approved companies appear in the active workspace or enter the shared Review / Waiting for approval queue. Earlier off-scope roles remain only in permanent history and the suppression audit; they cannot create new drafts or Gmail handoffs. Role comes from the recorded title. Level is a conservative interpretation of that title, with `Not established` when unsupported. A LinkedIn search link is clearly distinguished from a sourced individual profile URL. Missing addresses and profiles are never manufactured.
 
 Every contact import/save derives identity keys in the database; callers cannot evade checks by omitting keys. Supported email and LinkedIn variants are canonicalized. Explicit alternate emails remain associated with the person after edits. Existing aliases link transitively, including to old exclusion/deletion records. Shared names alone do not merge people.
 

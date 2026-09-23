@@ -18,7 +18,7 @@ test('database migration preserves lifetime identities and enforces outreach res
   await db.exec(await readFile(new URL('../supabase/migrations/202609220001_initial.sql',import.meta.url),'utf8'));
   const owner=randomUUID(),otherOwner=randomUUID(),legacy=randomUUID(),legacyAlias=randomUUID(),chain=randomUUID(),oldMessage=randomUUID(),deleted=randomUUID(),suppressed=randomUUID(),suppressedPeer=randomUUID(),suppressedMessage=randomUUID();
   await db.query('insert into auth.users(id) values ($1),($2)',[owner,otherOwner]);
-  const contact=(suffix,changes={})=>({name:'Test professional '+suffix,email:`${suffix}@example.com`,linkedin:`https://www.linkedin.com/in/test-${suffix}`,title:'Rates Trader',company:'Example Bank',industry:'Sales & Trading',location:'Chicago',timezone:'America/Chicago',identityConfirmed:true,emailOrigin:'published',verification:'unknown',sources:[{url:'https://example.com/team',note:'Test fixture',retrievedAt:new Date().toISOString()}],...changes});
+  const contact=(suffix,changes={})=>({name:'Test professional '+suffix,email:`${suffix}@example.com`,linkedin:`https://www.linkedin.com/in/test-${suffix}`,title:'Rates Trader',company:'JPMorgan',industry:'Sales & Trading',location:'Chicago',timezone:'America/Chicago',identityConfirmed:true,emailOrigin:'published',verification:'unknown',sources:[{url:'https://example.com/team',note:'Test fixture',retrievedAt:new Date().toISOString()}],...changes});
   for(const [id,data] of [[legacy,contact('legacy',{linkedin:'https://uk.linkedin.com/in/legacy-person/?trk=old'})],[legacyAlias,contact('legacy-alias',{linkedin:'https://www.linkedin.com/in/legacy-person#bio',alternateEmails:['shared-chain@example.com']})],[chain,contact('legacy-chain',{email:'shared-chain@example.com'})],[deleted,{name:'Deleted contact',excluded:true,email:'',linkedin:''}],[suppressed,contact('suppressed',{excluded:true,alternateEmails:['suppressed-alias@example.com']})],[suppressedPeer,contact('suppressed-peer',{email:'suppressed-alias@example.com'})]])await db.query("insert into public.records(id,owner,kind,data) values($1,$2,'contact',$3)",[id,owner,data]);
   await db.query("insert into public.records(id,owner,kind,data) values($1,$2,'message',$3)",[suppressedMessage,owner,{contactId:suppressedPeer,state:'waiting_approval',subject:'Existing draft',body:'Hi Test, a professional question.'}]);
   await db.query("insert into public.identities(owner,identity,contact_id) values($1,'email:old.deleted@example.com',$2)",[owner,deleted]);
@@ -29,6 +29,12 @@ test('database migration preserves lifetime identities and enforces outreach res
   async function saveContact(data,id=randomUUID(),version=null){await db.query('select public.save_contact($1,$2,$3,$4,$5)',[owner,id,version,data,[]]);return id;}
   async function saveMessage(cid,changes={},id=randomUUID(),version=null){await db.query("select public.save_record($1,'message',$2,$3,$4)",[owner,id,version,{contactId:cid,subject:'Question about rates',body:'Hi Test,\nWhat does a typical trading day look like?',state:'waiting_approval',sequence:0,...changes}]);return id;}
   async function reserve(mid,cid,mode='prepare',sentAt=null){const m=await row(mid),c=await row(cid);return db.query('select public.reserve_outreach($1,$2,$3,$4,$5,$6)',[owner,mid,m.version,c.version,mode,sentAt]);}
+
+  await t.test('database accepts the same explicit institution aliases as the application',async()=>{
+    const result=await db.query("select public.canonical_target_company(value) key from unnest(array['Wells Fargo & Company','Citigroup Global Markets','Nomura Securities International','HSBC Holdings','J.P. Morgan Securities','Fidelity Management & Research']) value");
+    assert.deepEqual(result.rows.map(row=>row.key),['wells fargo','citi','nomura','hsbc','jpmorgan','fidelity']);
+  });
+
   await asOwner();
 
   await t.test('historical cancelled handoff blocks canonical LinkedIn aliases',async()=>{
@@ -46,6 +52,8 @@ test('database migration preserves lifetime identities and enforces outreach res
     await assert.rejects(reserve(suppressedMessage,suppressedPeer),/suppressed/);
   });
   await t.test('identity checks ignore forged key arrays and preserve previous addresses',async()=>{
+    await assert.rejects(saveContact(contact('off-list',{company:'Not Approved Capital'})),/approved target companies/);
+    await assert.rejects(saveContact(contact('wealth-role',{title:'Wealth Management Advisor'})),/approved target companies/);
     const c=contact('alex',{email:'a.lex+work@gmail.com'}),id=await saveContact(c);
     await assert.rejects(saveContact(contact('alex-alias',{email:'alex@googlemail.com'})),/identity already exists/);
     await saveContact({...c,email:'alex.new@example.com',linkedin:'https://www.linkedin.com/in/new-profile'},id,1);
@@ -74,10 +82,10 @@ test('database migration preserves lifetime identities and enforces outreach res
     const cid2=await saveContact(contact('prepared-sent')),mid2=await saveMessage(cid2);
     await reserve(mid2,cid2);
     const c2=await row(cid2);
-    await saveContact({...c2.data,email:'new-job@example.com',company:'Different Bank'},cid2,c2.version);
+    await saveContact({...c2.data,email:'new-job@example.com',company:'Goldman Sachs'},cid2,c2.version);
     await reserve(mid2,cid2,'record_sent','2026-01-01T00:00:00Z');
     const sent=(await row(mid2)).data;
-    assert.equal(sent.state,'sent');assert.equal(sent.recipientEmail,'prepared-sent@example.com');assert.equal(sent.companyAtSend,'Example Bank');
+    assert.equal(sent.state,'sent');assert.equal(sent.recipientEmail,'prepared-sent@example.com');assert.equal(sent.companyAtSend,'JPMorgan');
   });
   await t.test('stale contact approval does not reserve anything',async()=>{
     const c=contact('stale'),cid=await saveContact(c),mid=await saveMessage(cid);
@@ -103,15 +111,16 @@ test('database migration preserves lifetime identities and enforces outreach res
   });
   await t.test('service discovery skips all old identities and cannot erase lifetime claims',async()=>{
     await db.exec('reset role');await db.query("select set_config('request.jwt.claim.sub','',false),set_config('request.jwt.claim.role','service_role',false)");await db.exec('set role service_role');
-    const data=contact('discovered',{discoveryDate:'2026-09-22',discoveryQuery:'markets-sales'});
+    const data=contact('discovered',{discoveryDate:'2026-09-22',discoveryQuery:'markets-sales',discoveryCompany:'example bank'});
     const discoveredId=(await db.query('select public.save_discovered_contact($1,$2) id',[owner,data])).rows[0].id;
     assert.ok(discoveredId);
     assert.equal((await db.query('select public.save_discovered_contact($1,$2) id',[owner,data])).rows[0].id,null);
     assert.equal((await db.query('select public.save_discovered_contact($1,$2) id',[owner,contact('again',{email:'old.deleted@example.com'})])).rows[0].id,null);
     await assert.rejects(db.query('delete from public.outreach_history'),/permission denied/);
     await asOwner();
-    await saveContact(contact('discovered',{discoveryDate:'2099-01-01'}),discoveredId,1);
+    await saveContact(contact('discovered',{discoveryDate:'2099-01-01',discoveryCompany:'different firm'}),discoveredId,1);
     assert.equal((await row(discoveredId)).data.discoveryDate,'2026-09-22');
     assert.equal((await row(discoveredId)).data.discoveryQuery,'markets-sales');
+    assert.equal((await row(discoveredId)).data.discoveryCompany,'jpmorgan');
   });
 });

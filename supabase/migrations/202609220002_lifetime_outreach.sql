@@ -52,6 +52,41 @@ begin
  return 'https://www.linkedin.com/in/'||slug;
 end $$;
 
+-- The automated pipeline has a closed employer list. Exact reviewed aliases
+-- map to one bucket; every other value returns null and is rejected.
+create function public.canonical_target_company(p_value text) returns text
+language plpgsql immutable set search_path='' as $$
+declare v text:=btrim(regexp_replace(lower(coalesce(p_value,'')),'[^a-z0-9]+',' ','g'));
+begin
+ v:=regexp_replace(v,' (incorporated|inc|corporation|corp|limited|ltd|llc|llp|plc|ag|sa|n a|co)$','','g');
+ if v ~ '^evercore( isi)?$' then return 'evercore'; end if;
+ if v ~ '^wells fargo( securities| bank| (and )?company)?$' then return 'wells fargo'; end if;
+ if v ~ '^deutsche bank( securities)?$' then return 'deutsche bank'; end if;
+ if v ~ '^(citi|citigroup|citibank|citigroup global markets)$' then return 'citi'; end if;
+ if v ~ '^nomura( securities| holdings| securities international)?$' then return 'nomura'; end if;
+ if v ~ '^hsbc( securities| bank| holdings)?$' then return 'hsbc'; end if;
+ if v ~ '^morgan stanley( and co)?$' then return 'morgan stanley'; end if;
+ if v ~ '^(bofa( securities)?|bank (of )?america( merrill lynch)?)$' then return 'bank of america'; end if;
+ if v='blackrock' then return 'blackrock'; end if;
+ if v ~ '^(jpmorgan|j p morgan|jp morgan)( chase| securities)?$' then return 'jpmorgan'; end if;
+ if v ~ '^goldman sachs( group)?$' then return 'goldman sachs'; end if;
+ if v ~ '^ubs( group|financial services|securities|investment bank|global markets)?$' then return 'ubs'; end if;
+ if v ~ '^barclays( capital)?$' then return 'barclays'; end if;
+ if v ~ '^fidelity( investments| management (and )?research)?$' then return 'fidelity'; end if;
+ if v ~ '^(balyasny|balyasny asset management|bam)$' then return 'balyasny'; end if;
+ return null;
+end $$;
+
+create function public.is_sales_trading_contact(p_data jsonb) returns boolean
+language plpgsql immutable set search_path='' as $$
+declare title text:=lower(coalesce(p_data->>'title','')); context text:=lower(coalesce(p_data->>'industry','')||' '||coalesce(p_data->>'roleFamily',''));
+begin
+ if title ~ '(wealth|private bank|financial advis|retail|software|engineer|developer|technology|recruit|human resources|operations|compliance|risk|research|middle office|back office|investment banking)' then return false; end if;
+ if title ~ '(sales[[:space:]]*(&|and|/)[[:space:]]*trading|s[[:space:]]*&[[:space:]]*t|trader|trading|market maker|market making|structur|global markets|capital markets sales)' then return true; end if;
+ if title ~ '(sales|salesperson)' and (title||' '||context) ~ '(institutional|equity|equities|fixed[ -]income|fx|foreign exchange|credit|rates|derivatives|securities|commodity|commodities|futures|bond)' then return true; end if;
+ return context ~ '(sales[[:space:]]*(&|and|/)[[:space:]]*trading|s[[:space:]]*&[[:space:]]*t)' and title ~ '(analyst|associate|vice president|vp|director|head|partner)';
+end $$;
+
 create function public.contact_identity_keys(p_data jsonb) returns text[]
 language sql immutable set search_path='' as $$
  select coalesce(array_agg(distinct identity order by identity),'{}'::text[]) from (
@@ -118,11 +153,12 @@ begin
  perform pg_advisory_xact_lock(hashtextextended(p_owner::text,0));
  select data into old_data from public.records where id=p_id and owner=p_owner and kind='contact' for update;
  -- The original discovery audit fields are server-owned and survive manual edits.
- foreach field in array array['discoveredAt','discoveryDate','discoveryQuery','selectionReason','selectedAt'] loop
+ foreach field in array array['discoveredAt','discoveryDate','discoveryQuery','discoveryCompany','selectionReason','selectedAt'] loop
   p_data:=p_data-field;
   if old_data ? field then p_data:=p_data||jsonb_build_object(field,old_data->field); end if;
  end loop;
  if old_data->>'excluded'='true' and coalesce(p_data->>'excluded','false')<>'true' then raise exception 'Suppression cannot be removed by editing'; end if;
+ if coalesce(p_data->>'excluded','false')<>'true' and (public.canonical_target_company(p_data->>'company') is null or not public.is_sales_trading_contact(p_data)) then raise exception 'Only Sales and Trading contacts at approved target companies are allowed'; end if;
  if coalesce(p_data->>'linkedin','')<>'' and public.canonical_linkedin(p_data->>'linkedin')='' then raise exception 'Use a public LinkedIn profile URL'; end if;
  -- Never trust caller-supplied identity keys, including the legacy p_keys argument.
  keys:=public.contact_identity_keys(p_data);
@@ -201,6 +237,7 @@ begin
  if p_mode='prepare' then
   if claimed.message_id is not null or nullif(m.data->>'gmailPreparedAt','') is not null then raise exception 'This email was already opened in Gmail. Another handoff is permanently blocked.'; end if;
   if exists(select 1 from public.related_contact_ids(p_owner,c.id) r join public.records suppressed on suppressed.owner=p_owner and suppressed.id=r.contact_id and suppressed.kind='contact' where suppressed.data->>'excluded'='true') then raise exception 'This person is suppressed in lifetime identity history'; end if;
+  if public.canonical_target_company(c.data->>'company') is null or not public.is_sales_trading_contact(c.data) then raise exception 'Only Sales and Trading contacts at approved target companies can be prepared'; end if;
   if c.data->>'synthetic'='true' or coalesce(c.data->>'identityConfirmed','false')<>'true' then raise exception 'Review this contact before opening Gmail'; end if;
   if coalesce(c.data->>'email','') !~ '^[^[:space:]@]+@[^[:space:]@]+\.[^[:space:]@]+$' or c.data->>'verification' in ('invalid','catch-all') then raise exception 'A supported business email is required'; end if;
   if coalesce(c.data->>'emailOrigin','') not in ('published','authorized provider') or jsonb_typeof(c.data->'sources') is distinct from 'array' or jsonb_array_length(c.data->'sources')=0 then raise exception 'A supported email source is required'; end if;
@@ -222,15 +259,17 @@ end $$;
 -- are skipped instead of edited, including contacts removed from the workspace.
 create function public.save_discovered_contact(p_owner uuid,p_data jsonb) returns uuid
 language plpgsql security definer set search_path='' as $$
-declare key text; keys text[]; cid uuid:=gen_random_uuid();
+declare key text; keys text[]; cid uuid:=gen_random_uuid(); company_key text;
 begin
  if coalesce(auth.role(),'')<>'service_role' then raise exception 'Unauthorized'; end if;
  if p_owner is null then raise exception 'Owner required'; end if;
  perform pg_advisory_xact_lock(hashtextextended(p_owner::text,0));
+ company_key:=public.canonical_target_company(p_data->>'company');
+ if company_key is null or not public.is_sales_trading_contact(p_data) then raise exception 'Only Sales and Trading contacts at approved target companies are accepted'; end if;
  keys:=public.contact_identity_keys(p_data);
  if cardinality(keys)=0 then raise exception 'An evidenced identity is required'; end if;
  if exists(select 1 from public.contact_identity_history where owner=p_owner and identity=any(keys)) then return null; end if;
- p_data:=(p_data-'id'-'version'-'outreachLocked')||jsonb_build_object('id',cid,'linkedin',public.canonical_linkedin(p_data->>'linkedin'),'synthetic',false,'excluded',false,'updatedAt',now());
+ p_data:=(p_data-'id'-'version'-'outreachLocked'-'discoveryCompany')||jsonb_build_object('id',cid,'linkedin',public.canonical_linkedin(p_data->>'linkedin'),'discoveryCompany',company_key,'synthetic',false,'excluded',false,'updatedAt',now());
  insert into public.records(id,owner,kind,data) values(cid,p_owner,'contact',p_data);
  foreach key in array keys loop
   insert into public.contact_identity_history(owner,contact_id,identity) values(p_owner,cid,key);
@@ -245,7 +284,7 @@ alter function public.stop_contact(uuid,uuid,text,boolean) security definer;
 
 -- Browser/API callers cannot erase history or bypass reservations with table writes.
 revoke insert,update,delete,truncate,references,trigger on public.records,public.identities,public.contact_identity_history,public.outreach_history from public,anon,authenticated,service_role;
-revoke all on function public.canonical_email(text),public.canonical_linkedin(text),public.contact_identity_keys(jsonb),public.related_contact_ids(uuid,uuid),public.outreach_status(uuid),public.reserve_outreach(uuid,uuid,integer,integer,text,timestamptz),public.save_discovered_contact(uuid,jsonb) from public,anon,authenticated,service_role;
+revoke all on function public.canonical_email(text),public.canonical_linkedin(text),public.canonical_target_company(text),public.is_sales_trading_contact(jsonb),public.contact_identity_keys(jsonb),public.related_contact_ids(uuid,uuid),public.outreach_status(uuid),public.reserve_outreach(uuid,uuid,integer,integer,text,timestamptz),public.save_discovered_contact(uuid,jsonb) from public,anon,authenticated,service_role;
 grant execute on function public.outreach_status(uuid),public.reserve_outreach(uuid,uuid,integer,integer,text,timestamptz) to authenticated;
 grant execute on function public.save_discovered_contact(uuid,jsonb) to service_role;
 
