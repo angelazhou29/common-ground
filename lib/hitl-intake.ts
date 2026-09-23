@@ -1,5 +1,5 @@
-import {canonicalCompany} from './company-scope.ts';
-import {canonicalLinkedin,normalizedEmail,safeUrl} from './safety.ts';
+import {canonicalCompany,TARGET_COMPANIES} from './company-scope.ts';
+import {canonicalLinkedin,canonicalPublicProfile,csv,normalizedEmail,safeUrl} from './safety.ts';
 import {isSalesAndTrading} from './targeting.ts';
 import type {Contact,Source} from './types.ts';
 
@@ -11,7 +11,7 @@ export const HITL_HEADERS=[
 ] as const;
 
 type Row=Record<string,unknown>;
-export type HitlIdentity={name:string;title:string;company:string;linkedin:string;desk:'sales'|'trading';productGroup:string;roleUrl:string;roleNote:string;roleCheckedAt:string};
+export type HitlIdentity={name:string;title:string;company:string;linkedin:string;profileUrl:string;desk:'sales'|'trading';productGroup:string;roleUrl:string;roleNote:string;roleCheckedAt:string};
 
 function text(row:Row,key:string,max=3000){return String(row[key]??'').trim().slice(0,max);}
 function required(row:Row,key:string,label:string,max=3000){const value=text(row,key,max);if(!value)throw Error(`${label} is required.`);return value;}
@@ -31,17 +31,20 @@ export function validateHitlIdentity(row:Row,now=Date.now()):HitlIdentity {
   const title=required(row,'title','Current title',300);
   const company=canonicalCompany(required(row,'company','Company',300));
   if(!company)throw Error('Company is outside the 15-company allowlist.');
-  const linkedin=canonicalLinkedin(required(row,'linkedin','Direct LinkedIn profile',2000));
-  if(!linkedin)throw Error('Direct LinkedIn profile must be a linkedin.com/in/... URL.');
-  if(!/^(?:yes|true|1)$/i.test(text(row,'identity_confirmed',10)))throw Error('Set identity_confirmed to yes only after manually checking the profile.');
+  const roleUrl=url(row,'role_evidence_url','Role evidence URL');
+  const rawLinkedin=text(row,'linkedin',2000);
+  if(rawLinkedin&&!canonicalLinkedin(rawLinkedin))throw Error('LinkedIn must be a linkedin.com/in/... URL. Leave it blank when an official public profile is used instead.');
+  const linkedin=canonicalLinkedin(rawLinkedin||roleUrl);
+  const profileUrl=linkedin?'':canonicalPublicProfile(roleUrl);
+  if(!linkedin&&!profileUrl)throw Error('Use a unique HTTPS public profile page for this person.');
+  if(!/^(?:yes|true|1)$/i.test(text(row,'identity_confirmed',10)))throw Error('Set identity_confirmed to yes only after manually checking the LinkedIn or public profile.');
   const desk=text(row,'desk',20).toLowerCase();
   if(!['sales','trading'].includes(desk))throw Error('Desk must be sales or trading.');
   const productGroup=required(row,'product_group','Product group',200);
-  const roleUrl=url(row,'role_evidence_url','Role evidence URL');
   const roleNote=required(row,'role_evidence_note','Role evidence note');
   const roleCheckedAt=date(row,'role_checked_at','Role check date',now,30);
   if(!isSalesAndTrading({title,industry:'Sales & Trading'}))throw Error('Title and evidence do not document a Sales & Trading role.');
-  return {name,title,company,linkedin,desk:desk as 'sales'|'trading',productGroup,roleUrl,roleNote,roleCheckedAt};
+  return {name,title,company,linkedin,profileUrl,desk:desk as 'sales'|'trading',productGroup,roleUrl,roleNote,roleCheckedAt};
 }
 
 /**
@@ -62,7 +65,7 @@ export function contactFromHitlRow(row:Row,now=Date.now()):Contact {
   const emailNote=required(row,'email_evidence_note','Email evidence note');
 
   const contact:Contact={
-    id:'',name:identity.name,title:identity.title,company:identity.company,email,linkedin:identity.linkedin,alternateEmails:[],
+    id:'',name:identity.name,title:identity.title,company:identity.company,email,linkedin:identity.linkedin,profileUrl:identity.profileUrl,alternateEmails:[],
     industry:'Sales & Trading',location:text(row,'location',300),timezone:text(row,'timezone',100),
     status:'Ready for review',verification:'valid',verifiedAt:emailVerifiedAt,
     emailOrigin:emailOrigin as Contact['emailOrigin'],identityConfirmed:true,
@@ -77,3 +80,8 @@ export function contactFromHitlRow(row:Row,now=Date.now()):Contact {
 }
 
 export function hitlTemplateCsv(){return HITL_HEADERS.join(',')+'\r\n';}
+export function hitlWorksheetCsv(){
+  const rows:Record<string,string>[]=[];
+  TARGET_COMPANIES.forEach((company,index)=>{for(let slot=0;slot<(index<10?7:6);slot++)rows.push(Object.fromEntries(HITL_HEADERS.map(header=>[header,header==='company'?company:''])));});
+  return csv(rows);
+}

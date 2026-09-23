@@ -24,6 +24,7 @@ test('database migration preserves lifetime identities and enforces outreach res
   await db.query("insert into public.identities(owner,identity,contact_id) values($1,'email:old.deleted@example.com',$2)",[owner,deleted]);
   await db.query("insert into public.records(id,owner,kind,data) values($1,$2,'message',$3)",[oldMessage,owner,{contactId:legacy,state:'cancelled',gmailPreparedAt:'2025-01-01T00:00:00Z',subject:'Prior handoff',body:'Already opened'}]);
   await db.exec(await readFile(new URL('../supabase/migrations/202609220002_lifetime_outreach.sql',import.meta.url),'utf8'));
+  await db.exec(await readFile(new URL('../supabase/migrations/202609230001_public_profile_identity.sql',import.meta.url),'utf8'));
   async function asOwner(id=owner){await db.exec('reset role');await db.query("select set_config('request.jwt.claim.sub',$1,false),set_config('request.jwt.claim.role','authenticated',false)",[id]);await db.exec('set role authenticated');}
   async function row(id){return (await db.query('select * from public.records where id=$1',[id])).rows[0];}
   async function saveContact(data,id=randomUUID(),version=null){await db.query('select public.save_contact($1,$2,$3,$4,$5)',[owner,id,version,data,[]]);return id;}
@@ -60,6 +61,11 @@ test('database migration preserves lifetime identities and enforces outreach res
     await assert.rejects(saveContact(contact('alex-old',{email:'alex@gmail.com'})),/identity already exists/);
     await assert.rejects(saveContact(contact('alex-link',{linkedin:c.linkedin})),/identity already exists/);
     const distinct=await saveContact(contact('different',{name:c.name}));assert.ok(distinct);
+  });
+  await t.test('a public biography remains a permanent identity when email and LinkedIn change',async()=>{
+    const profileUrl='https://example.com/people/public-trader?source=directory#bio';
+    await saveContact(contact('public-profile',{linkedin:'',profileUrl}));
+    await assert.rejects(saveContact(contact('public-profile-new',{linkedin:'',profileUrl:'https://EXAMPLE.com/people/public-trader/'})),/identity already exists/);
   });
   await t.test('one permanent reservation survives state changes, reimports, and redaction',async()=>{
     const c=contact('reserve'),cid=await saveContact(c),mid=await saveMessage(cid);

@@ -27,3 +27,12 @@ test('enrichment rejects inferred, accept-all, invalid and wrong-company results
   let count=0;const invalid:typeof fetch=async()=>++count===1?response({data:{email:'alex@jpmorgan.com',source_type:'found',accept_all:false}}):response({data:{status:'accept_all'}});
   await assert.rejects(()=>enrichHunterFoundEmail(row,'secret',invalid,Date.parse('2026-09-23T16:00:00Z')),/not valid/);
 });
+
+test('enrichment falls back to confirmed name and company without LinkedIn',async()=>{
+  const calls:string[]=[];
+  const fetcher:typeof fetch=async input=>{const url=String(input);calls.push(url);return calls.length===1?response({data:{email:'alex@jpmorgan.com',source_type:'found',accept_all:false}}):response({data:{status:'valid'}})};
+  await enrichHunterFoundEmail({...row,linkedin:'',role_evidence_url:'https://www.jpmorganchase.com/about/leadership'},'secret',fetcher,Date.parse('2026-09-23T16:00:00Z'));
+  assert.match(calls[0],/full_name=Alex/);
+  assert.match(calls[0],/company=JP(?:\+|%20)Morgan/);
+  assert.doesNotMatch(calls[0],/linkedin_handle/);
+});
