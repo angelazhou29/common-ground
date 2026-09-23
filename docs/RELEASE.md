@@ -10,7 +10,7 @@
 
 ## What changed
 
-Sales & Trading contacts sort before fallback roles. Role comes from the recorded title. Level is a conservative interpretation of that title, with `Not established` when unsupported. A LinkedIn search link is clearly distinguished from a sourced individual profile URL. Missing addresses and profiles are never manufactured.
+Only Sales & Trading contacts enter the shared Review / Waiting for approval queue. Other roles remain in Contacts and history; they cannot create new drafts or Gmail handoffs. Role comes from the recorded title. Level is a conservative interpretation of that title, with `Not established` when unsupported. A LinkedIn search link is clearly distinguished from a sourced individual profile URL. Missing addresses and profiles are never manufactured.
 
 Every contact import/save derives identity keys in the database; callers cannot evade checks by omitting keys. Supported email and LinkedIn variants are canonicalized. Explicit alternate emails remain associated with the person after edits. Existing aliases link transitively, including to old exclusion/deletion records. Shared names alone do not merge people.
 
@@ -28,7 +28,7 @@ Discovery uses a licensed search API and explicitly approved public hosts. It re
 
 Accepted candidates require a published professional biography with name, employer, role, email and individual LinkedIn URL, plus a corroborating page on another approved host. Inspect current role and employer before outreach. A published address is not mailbox deliverability verification. Existing contacts with weaker or missing evidence remain labeled accordingly.
 
-The worker searches Sales & Trading first. Finance fallback begins only after the configured priority query set completes and capacity remains. A provider outage or exhausted research budget is partial work, not evidence that no S&T people exist. Approved sources can yield zero contacts.
+The worker searches Sales & Trading only. There are no fallback searches or accepted fallback candidates. A provider outage or exhausted research budget is partial work, not evidence that no S&T people exist. Approved sources can yield zero contacts.
 
 Daily observations retain searches, results, profiles, qualified/accepted contacts, duplicates, rejected evidence and failures. Accepted yield guides subsequent query order while daily exploration preserves variety. This is a bounded, measurable search policy; it does not prove that every day's results improve or that the entire internet has been searched.
 
@@ -37,3 +37,9 @@ Daily observations retain searches, results, profiles, qualified/accepted contac
 `pnpm test` checks application and discovery rules. `pnpm run test:db` executes the real migrations, backfill, permissions, aliases, suppression, reservations and retries in disposable PGlite/PostgreSQL databases. PGlite uses one connection; this does not substitute for a multi-session production concurrency test. Run `pnpm run typecheck` and `pnpm run build` before release.
 
 Local `/demo` uses fictional, read-only data. Its browser checks verify layout and controls, not real contact correctness, authenticated production behavior, delivery or live provider success. Record production migration and provider execution separately from local validation.
+
+## Owner template
+
+The email template and sales/trading paragraphs are stored privately in Supabase settings, editable in the UI. Supported double-brace fields: firstName, desk, productGroup, company, title, deskParagraph, signature. Drafting requires an evidenced desk, product group and supporting source. Ambiguous roles remain for research rather than receiving guessed personalization. Template drafts are labeled owner-selected and excluded from the automatic variant experiment.
+
+The latest owner template requests a 15-minute call and mentions a résumé. Gmail compose links do not attach files: the review UI instructs the owner to attach the PDF and check the From account before clicking Send. No attachment or send is claimed automatically.

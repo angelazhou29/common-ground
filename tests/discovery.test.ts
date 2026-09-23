@@ -10,9 +10,9 @@ const person={'@type':'Person',name:'Fixture Person',jobTitle:'Vice President, F
 const html=(p:unknown=person)=>`<script type="application/ld+json">${JSON.stringify(p)}</script>`;
 const env={DISCOVERY_ENABLED:'true',BRAVE_SEARCH_API_KEY:'fixture-secret',DISCOVERY_ALLOWED_HOSTS:'alpha.example.org,beta.example.org',DISCOVERY_CONTACT_URL:'https://operator.example.org/contact'};
 
-test('all S&T query families precede fallback regardless of historical yield',()=>{
+test('only S&T query families run regardless of historical yield',()=>{
   const history=QUERY_RECIPES.map(q=>({...emptyObservation(q.id),searches:5,accepted:q.family==='fallback'?100:0}));
-  const plan=queryPlan(history,'2026-09-22');assert.equal(plan.length,6);assert.ok(plan.slice(0,4).every(q=>q.family==='sales-trading'));
+  const plan=queryPlan(history,'2026-09-22');assert.equal(plan.length,4);assert.ok(plan.slice(0,4).every(q=>q.family==='sales-trading'));
   assert.notEqual(queryPlan(history,'2026-09-22')[0].id,queryPlan(history,'2026-09-23')[0].id);
 });
 test('profile extraction never guesses missing identity, employer, title or email',()=>{
@@ -89,12 +89,12 @@ function fakeDb(options:{historyFails?:boolean;settings?:Row}={}){
   return {db,jobs,contacts,identities};
 }
 const noWait=async()=>{};
-test('a complete day is idempotent and only searches fallback after the entire S&T set',async()=>{
+test('a complete day is idempotent and never searches fallback roles',async()=>{
   const f=fakeDb();const calls:string[]=[];
   const io={search:async(q:string)=>{calls.push(q);return [];},wait:noWait};
-  const first=await runDiscoveryJob(f.db,'owner',env,io);assert.equal(first.ok,true);assert.equal(calls.length,6);
+  const first=await runDiscoveryJob(f.db,'owner',env,io);assert.equal(first.ok,true);assert.equal(calls.length,4);
   assert.ok(calls.slice(0,4).every(q=>!q.includes('"equity research"')&&!q.includes('"investment banking"')));
-  const second=await runDiscoveryJob(f.db,'owner',env,io);assert.equal('duplicate' in second&&second.duplicate,true);assert.equal(calls.length,6);
+  const second=await runDiscoveryJob(f.db,'owner',env,io);assert.equal('duplicate' in second&&second.duplicate,true);assert.equal(calls.length,4);
 });
 test('unavailable lifetime history stops before a provider request',async()=>{
   const f=fakeDb({historyFails:true});let calls=0;
@@ -108,7 +108,7 @@ test('provider failure and consumed S&T budget never authorize fallback or excee
     assert.equal(f.jobs[0].payload.searchRequests,calls);
   }
 });
-test('qualified S&T fills the cap before fallback; stored address stays unverified',async()=>{
+test('qualified S&T fills the cap; stored address stays unverified',async()=>{
   const f=fakeDb();const queries:string[]=[];
   const result=await runDiscoveryJob(f.db,'owner',{...env,DISCOVERY_DAILY_CAP:'1'}, {search:async(q:string)=>{queries.push(q);return [q.includes('"Fixture Person"')?'https://beta.example.org/bio':'https://alpha.example.org/bio'];},read:async()=>html(),wait:noWait});
   assert.equal(result.ok,true);assert.equal(f.contacts.length,1);assert.equal(f.contacts[0].data.verification,'unknown');assert.equal(f.contacts[0].data.sources.length,2);assert.equal(queries.length,2);

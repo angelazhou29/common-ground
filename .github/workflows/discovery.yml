@@ -1,7 +1,7 @@
 name: Daily public-source contact discovery
 on:
   schedule:
-    - cron: '23 13 * * *'
+    - cron: '23 13 * * 1-5'
   workflow_dispatch:
 permissions:
   contents: read

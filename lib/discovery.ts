@@ -8,8 +8,6 @@ export const QUERY_RECIPES:QueryRecipe[]=[
   {id:'sales-trading',family:'sales-trading',query:'"sales and trading" "biography" "email"'},
   {id:'trading-desk',family:'sales-trading',query:'"trader" "fixed income" "team"'},
   {id:'equity-sales',family:'sales-trading',query:'"equity sales" "team" "contact"'},
-  {id:'research',family:'fallback',query:'"equity research" "team" "email"'},
-  {id:'investment-banking',family:'fallback',query:'"investment banking" "team" "email"'},
 ];
 export type QueryObservation={id:string;searches:number;results:number;pages:number;profiles:number;qualified:number;accepted:number;duplicates:number;rejected:number;blocked:number;errors:number};
 export function emptyObservation(id:string):QueryObservation{return {id,searches:0,results:0,pages:0,profiles:0,qualified:0,accepted:0,duplicates:0,rejected:0,blocked:0,errors:0};}
@@ -40,7 +38,7 @@ export function queryPlan(history:QueryObservation[],day:string):QueryRecipe[] {
     const explore=rows[Math.floor(Date.parse(day)/86400000)%rows.length];
     return [explore,...scored.filter(r=>r.id!==explore.id)];
   };
-  return [...rank(QUERY_RECIPES.filter(r=>r.family==='sales-trading')),...rank(QUERY_RECIPES.filter(r=>r.family==='fallback'))];
+  return rank(QUERY_RECIPES.filter(r=>r.family==='sales-trading'));
 }
 export type PublishedPerson={name:string;title:string;company:string;email:string;linkedin:string;location:string;url:string};
 const object=(value:unknown):Record<string,unknown>|null=>value&&typeof value==='object'&&!Array.isArray(value)?value as Record<string,unknown>:null;

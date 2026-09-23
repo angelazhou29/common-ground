@@ -102,7 +102,7 @@ export async function runDiscoveryJob(db:SupabaseClient,owner:string,env:Environ
     for(const recipe of plan){
       if(payload.accepted>=config.dailyCap)break;
       if(payload.completedQueries.includes(recipe.id))continue;
-      if(recipe.family==='fallback'&&!QUERY_RECIPES.filter(q=>q.family==='sales-trading').every(q=>payload.completedQueries.includes(q.id)))break;
+      if(recipe.family!=='sales-trading')continue;
       const stats=payload.queryStats.find(q=>q.id===recipe.id)||emptyObservation(recipe.id);
       if(!payload.queryStats.includes(stats))payload.queryStats.push(stats);
       stats.searches++;await persist();
@@ -118,8 +118,7 @@ export async function runDiscoveryJob(db:SupabaseClient,owner:string,env:Environ
           if(payload.accepted>=config.dailyCap)break;
           if(!matchesPreferences(person,preferences)){stats.rejected++;continue;}
           if(identitiesFor(person).some(k=>identities.has(k))){stats.duplicates++;continue;}
-          if(recipe.family==='sales-trading'&&!isSalesAndTrading({title:person.title,industry:'Financial services'})){stats.rejected++;continue;}
-          if(recipe.family==='fallback'&&!/research|investment bank|portfolio|asset management/i.test(person.title)){stats.rejected++;continue;}
+          if(!isSalesAndTrading({title:person.title,industry:'Financial services'})){stats.rejected++;continue;}
           const corroborationUrls=await search(`"${person.name}" "${person.company}" (${config.hosts.map(h=>'site:'+h).join(' OR ')})`);
           let source='';
           for(const other of corroborationUrls.slice(0,5)){
