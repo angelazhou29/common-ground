@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
 import {PGlite} from '@electric-sql/pglite';
-import {canonicalLinkedin,emailIdentity} from '../lib/safety.ts';
+import {canonicalLinkedin,canonicalPublicProfile,emailIdentity} from '../lib/safety.ts';
 
 test('database and application agree on canonical profile and email identities',async t=>{
  const db=new PGlite();t.after(()=>db.close());
@@ -29,4 +29,8 @@ test('database and application agree on canonical profile and email identities',
  for(const input of ['A.B+rates@googlemail.com','ab@gmail.com','Alex+desk@Bank.com','\t A.B+tag@GMAIL.com \r\n','']){
   assert.equal((await db.query('select public.canonical_email($1) value',[input])).rows[0].value,emailIdentity(input),`email ${input}`);
  }
+ const profileMigration=await readFile(new URL('../supabase/migrations/202609230001_public_profile_identity.sql',import.meta.url),'utf8');
+ const profileStatement=profileMigration.match(/create function public\.canonical_public_profile\([\s\S]*?end \$\$;/)?.[0];
+ assert.ok(profileStatement);await db.exec(profileStatement);
+ for(const input of ['https://www.example.com/people/Alex-Trader/?ref=team#bio','https://www.example.com/people/Alex-Trader','https://example.com/','https://user@example.com/person','https://example.com:8443/person','http://example.com/person'])assert.equal((await db.query('select public.canonical_public_profile($1) value',[input])).rows[0].value,canonicalPublicProfile(input),`public profile ${input}`);
 });

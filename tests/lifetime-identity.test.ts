@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {canonicalLinkedin,emailIdentity,identitiesFor,normalizeAlternateEmails} from '../lib/safety.ts';
+import {canonicalLinkedin,canonicalPublicProfile,emailIdentity,identitiesFor,normalizeAlternateEmails} from '../lib/safety.ts';
 import {gmailComposeUrl} from '../lib/gmail-compose.ts';
 
 test('LinkedIn profile URL variants resolve to the same permanent identity',()=>{
@@ -24,6 +24,13 @@ test('alternate emails survive imports and canonical Gmail aliases collapse',()=
 test('corporate plus aliases and identical names are not guessed to be the same person',()=>{
  assert.equal(emailIdentity('Alex+desk@Bank.com'),'alex+desk@bank.com');
  assert.notDeepEqual(identitiesFor({name:'Alex Trader',email:'alex@one.example'}),identitiesFor({name:'Alex Trader',email:'alex@two.example'}));
+});
+
+test('unique public biographies become permanent identity keys without LinkedIn',()=>{
+ const profile='https://Example.com/people/Alex-Trader/?source=conference#bio';
+ assert.equal(canonicalPublicProfile(profile),'https://example.com/people/Alex-Trader');
+ assert.deepEqual(identitiesFor({profileUrl:profile}),['profile:https://example.com/people/Alex-Trader']);
+ for(const invalid of ['https://example.com/','http://example.com/person','https://user@example.com/person','https://example.com:8443/person'])assert.equal(canonicalPublicProfile(invalid),'');
 });
 
 test('a previous Gmail handoff cannot be reopened by changing the message state',()=>{

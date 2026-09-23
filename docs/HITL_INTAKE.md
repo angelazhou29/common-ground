@@ -1,6 +1,6 @@
-# LinkedIn-assisted Sales & Trading intake
+# Human-reviewed Sales & Trading intake
 
-This workflow uses LinkedIn as a human-reviewed current-employment source. It does not automate LinkedIn, install a browser extension, bypass a login, solve a CAPTCHA, rotate accounts, or scrape protected pages. Email enrichment starts only after a person has been manually confirmed.
+This workflow uses a direct LinkedIn profile or a unique public biography as a human-reviewed current-employment source. It does not automate LinkedIn, install a browser extension, bypass a login, solve a CAPTCHA, rotate accounts, or scrape protected pages. Email enrichment starts only after a person has been manually confirmed.
 
 ## Target pool
 
@@ -8,19 +8,23 @@ The session pool is 75 people: five valid contacts from each of the 15 approved 
 
 ## 1. Build the reviewed identity file
 
-In Contacts, choose **Import verified leads** and download the evidence CSV template. For each row:
+In Contacts, choose **Find & import people** and download the balanced worksheet. For each row:
 
-1. Open the direct `linkedin.com/in/...` profile yourself.
+1. Open the direct `linkedin.com/in/...` profile yourself. If LinkedIn is unavailable, use a unique HTTPS page dedicated to that person, such as an official company biography, exchange speaker page, conference profile, or regulatory profile. A generic team or search-results page is insufficient.
 2. Confirm the person currently works at the recorded target company.
 3. Confirm that the title and visible experience identify a Sales or Trading desk. Do not use wealth management, investment banking, research, risk, operations, engineering, recruiting, or ambiguous generic roles.
-4. Record `sales` or `trading`, a product group, a short factual evidence note, the profile or corroborating public URL, and the date checked.
+4. Record `sales` or `trading`, a product group, a short factual evidence note, the unique profile URL, and the date checked.
 5. Set `identity_confirmed` to `yes` only after completing those checks.
 
 Gather more than five candidates per firm when possible because some people will have no found, verifiable address. Keep the total input at 100 rows or fewer and place the strongest candidates first within each company.
 
 ## 2. Enrich only the confirmed rows
 
-Hunter is optional and is used only for email discovery. The helper calls `email-finder/found`, which excludes generated addresses, then calls `email-verifier` and accepts only `valid`. It rejects `accept_all`, `unknown`, inferred, wrong-company-domain, and missing results.
+Hunter is used only for email discovery. The website calls `email-finder/found`, which excludes generated addresses, then calls `email-verifier` and accepts only `valid`. It rejects `accept_all`, `unknown`, inferred, wrong-company-domain, and missing results. Add `HUNTER_API_KEY` once as a server-only Vercel environment variable; users never paste it into the browser or CSV.
+
+Upload the completed worksheet in the same dialog and choose **Verify emails & import**. The website processes each row, reports the outcome, and saves only accepted contacts. It never sends an email.
+
+The command-line helper remains available for private offline processing:
 
 In PowerShell:
 
@@ -36,7 +40,7 @@ If a different licensed provider is used, populate the same email evidence field
 
 ## 3. Import and review
 
-Upload `verified-leads.csv` in the same Contacts dialog. The server validates every row again and reports added contacts, lifetime duplicates, and rejected rows separately. The database reserves normalized email and LinkedIn identities, including deleted and previously contacted people, so a repeated person cannot receive another Gmail handoff.
+Upload `verified-leads.csv` in the same Contacts dialog. The server validates every row again and reports added contacts, lifetime duplicates, and rejected rows separately. The database reserves normalized email, LinkedIn, and unique public-profile identities, including deleted and previously contacted people, so a repeated known person cannot receive another Gmail handoff.
 
 Generate drafts only after reviewing the saved evidence. Every draft remains manual: approve it in Common Ground, open it in Gmail, review it again, and send it yourself.
 

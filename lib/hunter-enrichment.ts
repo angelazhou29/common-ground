@@ -41,7 +41,8 @@ function emailDomain(email:string){return email.toLowerCase().split('@').at(-1)|
 export async function enrichHunterFoundEmail(row:Row,apiKey:string,fetcher:Fetch=fetch,now=Date.now()):Promise<Row>{
   if(!apiKey)throw Error('HUNTER_API_KEY is required.');
   const identity=validateHitlIdentity(row,now);
-  const found=await hunterGet<{data?:FinderData}>('email-finder/found',{linkedin_handle:linkedinHandle(identity.linkedin),max_duration:'20'},apiKey,fetcher);
+  const lookup:Record<string,string>=identity.linkedin?{linkedin_handle:linkedinHandle(identity.linkedin),max_duration:'20'}:{full_name:identity.name,company:identity.company,max_duration:'20'};
+  const found=await hunterGet<{data?:FinderData}>('email-finder/found',lookup,apiKey,fetcher);
   const data=found.data;
   if(!data?.email)throw Error('No publicly found email was returned.');
   const email=data.email.trim().toLowerCase();

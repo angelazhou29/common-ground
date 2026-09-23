@@ -16,7 +16,8 @@ export function canonicalLinkedin(raw:string){
   return `https://www.linkedin.com/in/${normalized}`;
  }catch{return '';}
 }
-export function identitiesFor(c:Partial<Contact>){const linkedin=canonicalLinkedin(c.linkedin||'');return [...new Set([c.email,...(c.alternateEmails||[])].filter(e=>Boolean(e?.trim())).map(e=>'email:'+emailIdentity(e!)).concat(linkedin?['linkedin:'+linkedin]:[]))];}
+export function canonicalPublicProfile(raw:string){try{const u=new URL(raw.trim());if(u.protocol!=='https:'||u.username||u.password||u.port||!u.hostname.includes('.')||u.pathname==='/'||!u.pathname)return '';u.search='';u.hash='';u.pathname=u.pathname.replace(/\/+$/,'');return u.href;}catch{return '';}}
+export function identitiesFor(c:Partial<Contact>){const linkedin=canonicalLinkedin(c.linkedin||''),profile=canonicalPublicProfile(c.profileUrl||'');return [...new Set([c.email,...(c.alternateEmails||[])].filter(e=>Boolean(e?.trim())).map(e=>'email:'+emailIdentity(e!)).concat(linkedin?['linkedin:'+linkedin]:[]).concat(profile?['profile:'+profile]:[]))];}
 export function normalizeAlternateEmails(raw:unknown){
  let input=raw;
  if(typeof input==='string')input=input.trim().startsWith('[')?JSON.parse(input):input.split(/[;,\n]/);

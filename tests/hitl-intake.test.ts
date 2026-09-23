@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {contactFromHitlRow,hitlTemplateCsv,HITL_HEADERS} from '../lib/hitl-intake.ts';
+import {contactFromHitlRow,hitlTemplateCsv,hitlWorksheetCsv,HITL_HEADERS,validateHitlIdentity} from '../lib/hitl-intake.ts';
 import {parseCsv,reviewReasons} from '../lib/safety.ts';
 
 const now=Date.parse('2026-09-23T16:00:00Z');
@@ -42,4 +42,19 @@ test('downloadable template has the exact strict intake columns',()=>{
   const parsedHeaders=hitlTemplateCsv().trim().split(',');
   assert.deepEqual(parsedHeaders,[...HITL_HEADERS]);
   assert.deepEqual(parseCsv(hitlTemplateCsv()),[]);
+});
+
+test('balanced worksheet provides 100 research slots across every target company',()=>{
+  const rows=parseCsv(hitlWorksheetCsv());
+  assert.equal(rows.length,100);
+  const counts=new Map<string,number>();
+  for(const candidate of rows)counts.set(candidate.company,(counts.get(candidate.company)||0)+1);
+  assert.equal(counts.size,15);
+  assert.ok([...counts.values()].every(count=>count===6||count===7));
+});
+
+test('an official public profile can establish identity when LinkedIn is unavailable',()=>{
+  const identity=validateHitlIdentity({...row,linkedin:'',role_evidence_url:'https://www.jpmorganchase.com/about/leadership'},now);
+  assert.equal(identity.linkedin,'');
+  assert.equal(identity.company,'JP Morgan');
 });
